@@ -11,10 +11,10 @@ import { CourseCommentsModule } from './modules/course-comments/course-comments.
 import { PostCommentsModule } from './modules/post-comments/post-comments.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { OrderItemsModule } from './modules/order-items/order-items.module';
-
+import { PrismaModule } from './prisma/prisma.module';
 @Module({
-  imports: [ UsersModule, CoursesModule, SectionsModule, LessonsModule, WishlistsModule, PostsModule, CourseCommentsModule, PostCommentsModule, OrdersModule, OrderItemsModule],
+  imports: [UsersModule, CoursesModule, SectionsModule, LessonsModule, WishlistsModule, PostsModule, CourseCommentsModule, PostCommentsModule, OrdersModule, OrderItemsModule, PrismaModule],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
