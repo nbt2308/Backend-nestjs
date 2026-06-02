@@ -2,6 +2,9 @@
     "compilerOptions": {
         "module": "nodenext",
         "moduleResolution": "nodenext",
+        "types": [
+            "node"
+        ],
         "esModuleInterop": true,
         "isolatedModules": true,
         "declaration": true,
@@ -19,7 +22,7 @@
                 "./src/*"
             ]
         },
-        "incremental": true,
+        "incremental": false,
         "skipLibCheck": true,
         "strictNullChecks": true,
         "forceConsistentCasingInFileNames": true,
