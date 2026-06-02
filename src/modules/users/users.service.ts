@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -28,7 +28,7 @@ export class UsersService {
       const { name, email, phone, password } = createUserDto;
       const checkEmailOrPhoneExist = await this.checkEmailOrPhoneExist(email, phone)
       if (!checkEmailOrPhoneExist) {
-        throw new BadRequestException('Email or phone already exists')
+        throw new BadRequestException('Email hoặc số điện thoại đã tồn tại')
       }
       const hashPassword = await hashPasswordHelper(password);
       const user = await this.prisma.user.create({
@@ -46,7 +46,7 @@ export class UsersService {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to create user');
+      throw new InternalServerErrorException('Tạo người dùng thất bại');
     }
 
   }
@@ -75,11 +75,87 @@ export class UsersService {
     return `This action returns a #${id} user`;
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+  async update(updateUserDto: UpdateUserDto) {
+    try {
+      const { id, name, phone, address, avatar } = updateUserDto;
+
+      //check user exist
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng')
+      }
+      //validate exist phone
+      if (phone) {
+        const checkPhoneExist = await this.prisma.user.findFirst({
+          where: {
+            phone: phone,
+            NOT: { id: id }
+          }
+        })
+        if (checkPhoneExist) {
+          throw new BadRequestException('Số điện thoại đã tồn tại')
+        }
+      }
+
+      const updateUser = await this.prisma.user.update({
+        where: {
+          id: id
+        },
+        data: {
+          name: name,
+          phone: phone,
+          address: address,
+          avatar: avatar
+        }
+      })
+      return {
+        id: updateUser.id,
+        name: updateUser.name,
+        email: updateUser.email,
+        phone: updateUser.phone,
+        address: updateUser.address,
+        avatar: updateUser.avatar
+      }
+    }
+    catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật');
+    }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async remove(id: number) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng')
+      }
+      const removeUser = await this.prisma.user.delete({
+        where: {
+          id: id
+        }
+      })
+      return {
+        id: removeUser.id
+      }
+    }
+    catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
+    }
   }
 }

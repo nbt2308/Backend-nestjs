@@ -8,6 +8,11 @@ async function bootstrap() {
     app.useGlobalPipes(new ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,
+        skipMissingProperties: true,
+        transform: true,
+        transformOptions: {
+            enableImplicitConversion: true, // Tự động hiểu kiểu dữ liệu từ TypeScript
+        },
     }));
     app.setGlobalPrefix('api/v1', {
         exclude: [''],
