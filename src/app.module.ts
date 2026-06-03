@@ -13,9 +13,10 @@ import { PostCommentsModule } from './modules/post-comments/post-comments.module
 import { OrdersModule } from './modules/orders/orders.module';
 import { OrderItemsModule } from './modules/order-items/order-items.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
     UsersModule,
     CoursesModule,
     SectionsModule,
@@ -27,6 +28,7 @@ import { PrismaModule } from './prisma/prisma.module';
     OrdersModule,
     OrderItemsModule,
     PrismaModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
