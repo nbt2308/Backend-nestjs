@@ -54,33 +54,34 @@ model User {
 }
 
 // 3. Hệ thống Khóa học (LMS)
-model Category {
+model Tag {
   id          Int     @id @default(autoincrement())
   name        String  @unique
   slug        String  @unique
   description String? @db.Text
 
   courses Course[]
+  posts   Post[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Course {
-  id           Int      @id @default(autoincrement())
+  id           Int     @id @default(autoincrement())
   title        String
-  slug         String   @unique
-  description  String   @db.Text
+  slug         String  @unique
+  description  String  @db.Text
   thumbnail    String?
-  courseType   String   @default("FREE")
-  level        String   @default("BEGINNER")
-  status       Boolean  @default(true)
-  price        Decimal  @default(0) @db.Decimal(12, 2)
-  discount     Decimal  @default(0) @db.Decimal(12, 2)
+  courseType   String  @default("FREE")
+  level        String  @default("BEGINNER")
+  status       Boolean @default(true)
+  price        Decimal @default(0) @db.Decimal(12, 2)
+  discount     Decimal @default(0) @db.Decimal(12, 2)
   instructorId Int
-  instructor   User     @relation(fields: [instructorId], references: [id])
-  categoryId   Int
-  category     Category @relation(fields: [categoryId], references: [id])
+  instructor   User    @relation(fields: [instructorId], references: [id])
+  tagId        Int
+  tag          Tag     @relation(fields: [tagId], references: [id])
 
   sections Section[]
 
@@ -112,11 +113,13 @@ model Lesson {
 
 // 4. Wishlist
 model Wishlist {
-  id       Int    @id @default(autoincrement())
-  userId   Int
-  user     User   @relation(fields: [userId], references: [id])
-  courseId Int
-  course   Course @relation(fields: [courseId], references: [id])
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  courseId  Int
+  course    Course   @relation(fields: [courseId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, courseId])
 }
@@ -132,6 +135,7 @@ model Order {
 
   orderItems OrderItem[]
   createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 }
 
 model OrderItem {
@@ -140,8 +144,10 @@ model OrderItem {
   courseId Int
   price    Decimal @db.Decimal(12, 2) // Lưu giá tại thời điểm mua
 
-  order  Order  @relation(fields: [orderId], references: [id])
-  course Course @relation(fields: [courseId], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id])
+  course    Course   @relation(fields: [courseId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // 6. Blog
@@ -150,17 +156,25 @@ model Post {
   title     String
   slug      String        @unique
   content   String        @db.Text
+  likes     Int           @default(0)
+  dislikes  Int           @default(0)
+  views     Int           @default(0)
   authorId  Int
   author    User          @relation(fields: [authorId], references: [id])
   comments  PostComment[]
+  tagId     Int
+  tag       Tag           @relation(fields: [tagId], references: [id])
   createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
 // 7. Hệ thống Nested Comment (Cơ bản: Cha - Con)
 model CourseComment {
-  id      Int    @id @default(autoincrement())
-  content String @db.Text
-  rating  Int    @default(5)
+  id       Int    @id @default(autoincrement())
+  content  String @db.Text
+  rating   Int    @default(5)
+  likes    Int    @default(0)
+  dislikes Int    @default(0)
 
   userId   Int
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -173,11 +187,14 @@ model CourseComment {
   replies  CourseComment[] @relation("CourseCommentToComment")
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model PostComment {
-  id      Int    @id @default(autoincrement())
-  content String @db.Text
+  id       Int    @id @default(autoincrement())
+  content  String @db.Text
+  likes    Int    @default(0)
+  dislikes Int    @default(0)
 
   userId Int
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -190,4 +207,5 @@ model PostComment {
   replies  PostComment[] @relation("PostCommentToComment")
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
