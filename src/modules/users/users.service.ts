@@ -3,7 +3,11 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashPasswordHelper } from '@/helpers/utils';
-
+import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
+import { v4 as uuidv4 } from "uuid";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+dayjs.extend(utc);
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) { }
@@ -165,5 +169,30 @@ export class UsersService {
       }
       throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
     }
+  }
+
+  async handleRegister(registerDTO: CreateAuthDto) {
+    //check email or phone exist
+    const checkUserExist = await this.checkEmailOrPhoneExist(registerDTO.email, registerDTO.phone);
+    if (!checkUserExist) {
+      throw new BadRequestException('Email hoặc số điện thoại đã tồn tại');
+    }
+    //hash password
+    const hashPassword = await hashPasswordHelper(registerDTO.password);
+
+    //create user
+    const user = await this.prisma.user.create({
+      data: {
+        email: registerDTO.email,
+        phone: registerDTO.phone,
+        password: hashPassword,
+        name: registerDTO.name,
+        isActive: false,
+        codeId: uuidv4(),
+        codeExpired: dayjs().utc().add(15, 'minute').toDate()
+      }
+    })
+    //send email to verify account
+    return user.id;
   }
 }
