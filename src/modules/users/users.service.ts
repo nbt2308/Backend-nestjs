@@ -4,13 +4,14 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashPasswordHelper } from '@/helpers/utils';
 import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
-import { v4 as uuidv4 } from "uuid";
+import { nanoid } from 'nanoid'
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import { MailService } from '@/mail/mail.service';
 dayjs.extend(utc);
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService, private mailService: MailService) { }
 
   //func check email and phone exist
   checkEmailOrPhoneExist = async (email: string, phone: string) => {
@@ -179,8 +180,9 @@ export class UsersService {
     }
     //hash password
     const hashPassword = await hashPasswordHelper(registerDTO.password);
-
     //create user
+    const codeID = nanoid(6)
+    const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED || 5), 'minute').toDate();
     const user = await this.prisma.user.create({
       data: {
         email: registerDTO.email,
@@ -188,11 +190,12 @@ export class UsersService {
         password: hashPassword,
         name: registerDTO.name,
         isActive: false,
-        codeId: uuidv4(),
-        codeExpired: dayjs().utc().add(15, 'minute').toDate()
+        codeId: codeID,
+        codeExpired: codeExpired
       }
     })
     //send email to verify account
+    await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
     return user.id;
   }
 }

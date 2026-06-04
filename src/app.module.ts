@@ -16,6 +16,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/passport/jwt-auth.guard';
+import { MailModule } from './mail/mail.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
@@ -31,6 +32,7 @@ import { JwtAuthGuard } from './auth/passport/jwt-auth.guard';
     OrderItemsModule,
     PrismaModule,
     AuthModule,
+    MailModule
   ],
   controllers: [AppController],
   providers: [AppService,
