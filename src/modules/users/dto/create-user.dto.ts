@@ -15,8 +15,8 @@ export class CreateUserDto {
     phone!: string;
 
 
-    @MinLength(6)
-    @MaxLength(16)
+    @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
+    @MaxLength(32, { message: 'Mật khẩu không được vượt quá 32 ký tự' })
     password!: string;
 
 
