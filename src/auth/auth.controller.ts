@@ -6,6 +6,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { LocalAuthGuard } from './passport/local-auth.guard';
 import { JwtAuthGuard } from './passport/jwt-auth.guard';
 import { Public } from '@/decorator/public.decorator';
+import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 
 
 @Controller('auth')
@@ -13,6 +14,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
   @UseGuards(LocalAuthGuard)
+  @ResponseMessage('Login successfully')
   @Public()
   @Post('login')
   async handleLogin(@Request() req) {
