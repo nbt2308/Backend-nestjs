@@ -9,9 +9,9 @@ import { CreateAuthDto } from './dto/create-auth.dto';
 export class AuthService {
   constructor(private readonly usersService: UsersService, private jwtService: JwtService) { }
 
-  async validateUser(username: string, pass: string): Promise<any> {
+  async validateUser(username: string, password: string): Promise<any> {
     const user = await this.usersService.findByEmail(username);
-    const isValidPassword = await comparePasswordHelper(pass, user?.password ?? '')
+    const isValidPassword = await comparePasswordHelper(password, user?.password ?? '')
     if (!user || !isValidPassword) return null;
 
     return user;
