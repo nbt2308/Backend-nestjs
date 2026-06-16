@@ -7,6 +7,7 @@ import { LocalAuthGuard } from './passport/local-auth.guard';
 import { JwtAuthGuard } from './passport/jwt-auth.guard';
 import { Public } from '@/decorator/public.decorator';
 import { ResponseMessage } from '@/decorator/responseMessage.decorator';
+import { OAuthDto } from './dto/oauth.dto';
 
 
 @Controller('auth')
@@ -25,6 +26,12 @@ export class AuthController {
   @Post('register')
   async handleRegister(@Body() registerDTO: CreateAuthDto) {
     return await this.authService.register(registerDTO);
+  }
+
+  @Public()
+  @Post('oauth')
+  async handleOAuthLogin(@Body() oauthDTO: OAuthDto) {
+    return await this.authService.oauthLogin(oauthDTO);
   }
 
 }

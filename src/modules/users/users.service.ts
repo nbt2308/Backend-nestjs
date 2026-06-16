@@ -8,6 +8,8 @@ import { nanoid } from 'nanoid'
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { MailService } from '@/mail/mail.service';
+import { OAuthDto } from '@/auth/dto/oauth.dto';
+import { JwtService } from '@nestjs/jwt';
 dayjs.extend(utc);
 @Injectable()
 export class UsersService {
@@ -198,4 +200,6 @@ export class UsersService {
     await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
     return user.id;
   }
+
+
 }

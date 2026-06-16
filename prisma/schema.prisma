@@ -46,8 +46,8 @@ model User {
   phone       String?   @unique
   address     String?
   role        Role      @default(STUDENT)
-  provider    String    @default("LOCAL")
-  socialId    String?   @unique
+  googleId    String?   @unique
+  githubId    String?   @unique
   isActive    Boolean   @default(false)
   codeId      String?
   codeExpired DateTime?
