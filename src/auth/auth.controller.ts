@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { CreateAuthDto } from './dto/create-auth.dto';
+import { CreateAuthDto, ResendOtpDto, VerifyOtpDto } from './dto/create-auth.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { LocalAuthGuard } from './passport/local-auth.guard';
@@ -32,6 +32,20 @@ export class AuthController {
   @Post('oauth')
   async handleOAuthLogin(@Body() oauthDTO: OAuthDto) {
     return await this.authService.oauthLogin(oauthDTO);
+  }
+
+  @Public()
+  @Post('verify-otp')
+  @ResponseMessage('Verify OTP successfully')
+  async handleVerifyOtp(@Body() verifyOtpDTO: VerifyOtpDto) {
+    return await this.authService.verifyOtp(verifyOtpDTO);
+  }
+
+  @Public()
+  @ResponseMessage('Resend OTP successfully')
+  @Post('resend-otp')
+  async handleResendOtp(@Body() resendOtpDTO: ResendOtpDto) {
+    return await this.authService.resendOtp(resendOtpDTO);
   }
 
 }

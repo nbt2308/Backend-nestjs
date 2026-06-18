@@ -1,10 +1,10 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashPasswordHelper } from '@/helpers/utils';
-import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
-import { nanoid } from 'nanoid'
+import { CreateAuthDto, ResendOtpDto, VerifyOtpDto } from '@/auth/dto/create-auth.dto';
+import { nanoid, customAlphabet } from 'nanoid'
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { MailService } from '@/mail/mail.service';
@@ -178,13 +178,13 @@ export class UsersService {
     //check email or phone exist
     const checkUserExist = await this.checkEmailOrPhoneExist(registerDTO.email, registerDTO.phone);
     if (!checkUserExist) {
-      throw new BadRequestException('Email hoặc số điện thoại đã tồn tại');
+      throw new ConflictException('Email hoặc số điện thoại đã tồn tại');
     }
     //hash password
     const hashPassword = await hashPasswordHelper(registerDTO.password);
     //create user
-    const codeID = nanoid(6)
-    const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED || 5), 'minute').toDate();
+    const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
+    const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
     const user = await this.prisma.user.create({
       data: {
         email: registerDTO.email,
@@ -198,8 +198,107 @@ export class UsersService {
     })
     //send email to verify account
     await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
-    return user.id;
+    return {
+      id: user.id
+    };
   }
 
+  async handleVerifyOtp(verifyOtpDTO: VerifyOtpDto) {
+    try {
+      const { id, codeId } = verifyOtpDTO;
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng')
+      }
+
+      if (user.isActive) {
+        throw new BadRequestException('Người dùng đã được xác thực')
+      }
+
+      if (user.codeId !== codeId) {
+        throw new BadRequestException('Mã xác thực không chính xác')
+      }
+
+      //check code id expired
+      const isCodeExpired = dayjs(user.codeExpired).isBefore(dayjs());
+      if (!user.codeExpired || isCodeExpired) {
+        throw new BadRequestException('Mã xác thực đã hết hạn')
+      }
+      const updateUser = await this.prisma.user.update({
+        where: {
+          id: id
+        },
+        data: {
+          isActive: true
+        }
+      })
+      return {
+        id: updateUser.id,
+        name: updateUser.name,
+        email: updateUser.email,
+        phone: updateUser.phone,
+        address: updateUser.address,
+        avatar: updateUser.avatar
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xác thực');
+    }
+  }
+
+  async handleResendOtp(resendOtpDTO: ResendOtpDto) {
+    try {
+      const now = Date.now();
+      const requestLimitMs = 2 * 60 * 1000;
+
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: resendOtpDTO.id
+        }
+      })
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng')
+      }
+
+      if (user.codeExpired && now - user.codeExpired.getTime() < requestLimitMs) {
+        const remainMs = user.codeExpired.getTime() - now;
+        const remainMinutes = Math.ceil(remainMs / 60000);
+        throw new BadRequestException(`Vui lòng chờ ${remainMinutes} phút để gửi lại mã`);
+      }
+      const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
+      const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
+      const updateUser = await this.prisma.user.update({
+        where: {
+          id: resendOtpDTO.id
+        },
+        data: {
+          codeId: codeID,
+          codeExpired: codeExpired
+        }
+      })
+      //send email to verify account
+      await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
+      return {
+        id: updateUser.id
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi gửi lại mã OTP');
+    }
+  }
 
 }

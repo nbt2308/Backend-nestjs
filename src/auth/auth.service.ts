@@ -3,7 +3,7 @@ import { BadRequestException, Body, ConflictException, Injectable, UnauthorizedE
 import { UsersService } from '@/modules/users/users.service';
 import { comparePasswordHelper } from '@/helpers/utils';
 import { JwtService } from '@nestjs/jwt';
-import { CreateAuthDto } from './dto/create-auth.dto';
+import { CreateAuthDto, ResendOtpDto, VerifyOtpDto } from './dto/create-auth.dto';
 import { OAuthDto } from './dto/oauth.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 
@@ -104,5 +104,12 @@ export class AuthService {
       access_token: this.jwtService.sign(payload)
     }
 
+  }
+
+  async verifyOtp(verifyOtpDTO: VerifyOtpDto) {
+    return await this.usersService.handleVerifyOtp(verifyOtpDTO);
+  }
+  async resendOtp(resendOtpDTO: ResendOtpDto) {
+    return await this.usersService.handleResendOtp(resendOtpDTO);
   }
 }

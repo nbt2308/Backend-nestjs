@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsPhoneNumber, MaxLength, MinLength } from "class-validator";
+import { IsEmail, IsNotEmpty, IsPhoneNumber, Length, MaxLength, MinLength } from "class-validator";
 
 export class CreateAuthDto {
     @IsNotEmpty({ message: 'Email không được để trống' })
@@ -7,7 +7,7 @@ export class CreateAuthDto {
 
     @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
     @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
-    @MaxLength(16, { message: 'Mật khẩu không được vượt quá 16 ký tự' })
+    @MaxLength(32, { message: 'Mật khẩu không được vượt quá 32 ký tự' })
     password!: string;
 
     @IsPhoneNumber('VN', { message: 'Số điện thoại không đúng định dạng' })
@@ -15,4 +15,17 @@ export class CreateAuthDto {
 
     @IsNotEmpty({ message: 'Tên không được để trống' })
     name!: string;
+}
+
+export class VerifyOtpDto {
+    @IsNotEmpty({ message: 'Code ID không được để trống' })
+    @Length(6, 6, { message: 'Code ID phải có 6 ký tự' })
+    codeId!: string;
+
+    @IsNotEmpty({ message: 'Id không được để trống' })
+    id!: number;
+}
+export class ResendOtpDto {
+    @IsNotEmpty({ message: 'Id không được để trống' })
+    id!: number;
 }

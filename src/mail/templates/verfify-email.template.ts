@@ -1,5 +1,5 @@
 export const getVerifyEmailTemplate = (userName: string, otpCode: string): string => {
-    return `
+  return `
 <!DOCTYPE html>
 <html dir="ltr" lang="vi">
   <head>
@@ -61,7 +61,7 @@ export const getVerifyEmailTemplate = (userName: string, otpCode: string): strin
                 <tr>
                   <td style="background-color:#fafafa; padding: 24px 40px; text-align: center; border-top: 1px solid #eaeaea;">
                     <p style="margin:0; font-size:12px; color:#a1a1aa;">
-                      © 2026 Bản quyền thuộc về Đội ngũ phát triển.<br/>
+                      © 2026 Bản quyền thuộc về NevaGiveup.<br/>
                       Vui lòng không trả lời trực tiếp email này.
                     </p>
                   </td>
