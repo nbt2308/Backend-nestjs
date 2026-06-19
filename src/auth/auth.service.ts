@@ -1,12 +1,13 @@
 
-import { BadRequestException, Body, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '@/modules/users/users.service';
 import { comparePasswordHelper } from '@/helpers/utils';
 import { JwtService } from '@nestjs/jwt';
 import { CreateAuthDto, ResendOtpDto, VerifyOtpDto } from './dto/create-auth.dto';
 import { OAuthDto } from './dto/oauth.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-
+import dayjs from 'dayjs';
+import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class AuthService {
   constructor(private readonly usersService: UsersService, private jwtService: JwtService, private prisma: PrismaService) { }
@@ -24,6 +25,38 @@ export class AuthService {
     const isValidPassword = await comparePasswordHelper(password, user?.password ?? '')
     if (!isValidPassword) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
+    }
+    else {
+      if (user.isActive === false) {
+        //check verify token expired
+        const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(dayjs());
+        if (!user.verifyTokenExpired || isVerifyTokenExpired) {
+          const verifyToken = uuidv4()
+          const verifyTokenExpired = dayjs().utc().add(Number(process.env.VERIFY_TOKEN_EXPIRED), 'minute').toDate();
+          const update = await this.prisma.user.update({
+            where: {
+              id: user.id
+            },
+            data: {
+              verifyToken: verifyToken,
+              verifyTokenExpired: verifyTokenExpired
+            }
+          })
+
+          throw new ForbiddenException({
+            statusCode: 403,
+            error: "Forbidden",
+            message: 'Tài khoản chưa được kích hoạt',
+            verifyToken: update.verifyToken
+          });
+        }
+        throw new ForbiddenException({
+          statusCode: 403,
+          error: "Forbidden",
+          message: 'Tài khoản chưa được kích hoạt',
+          verifyToken: user.verifyToken
+        });
+      }
     }
 
     return user;

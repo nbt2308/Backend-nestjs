@@ -10,6 +10,7 @@ import utc from 'dayjs/plugin/utc';
 import { MailService } from '@/mail/mail.service';
 import { OAuthDto } from '@/auth/dto/oauth.dto';
 import { JwtService } from '@nestjs/jwt';
+import { v4 as uuidv4 } from 'uuid';
 dayjs.extend(utc);
 @Injectable()
 export class UsersService {
@@ -185,6 +186,8 @@ export class UsersService {
     //create user
     const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
     const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
+    const verifyToken = uuidv4();
+    const verifyTokenExpired = dayjs().utc().add(Number(process.env.VERIFY_TOKEN_EXPIRED), 'minute').toDate();
     const user = await this.prisma.user.create({
       data: {
         email: registerDTO.email,
@@ -193,22 +196,25 @@ export class UsersService {
         name: registerDTO.name,
         isActive: false,
         codeId: codeID,
-        codeExpired: codeExpired
+        codeExpired: codeExpired,
+        verifyToken: verifyToken,
+        verifyTokenExpired: verifyTokenExpired
       }
     })
     //send email to verify account
     await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
     return {
-      id: user.id
+      id: user.id,
+      verifyToken: user.verifyToken
     };
   }
 
   async handleVerifyOtp(verifyOtpDTO: VerifyOtpDto) {
     try {
-      const { id, codeId } = verifyOtpDTO;
-      const user = await this.prisma.user.findUnique({
+      const { verifyToken, codeId } = verifyOtpDTO;
+      const user = await this.prisma.user.findFirst({
         where: {
-          id: id
+          verifyToken: verifyToken
         }
       })
       if (!user) {
@@ -222,7 +228,11 @@ export class UsersService {
       if (user.codeId !== codeId) {
         throw new BadRequestException('Mã xác thực không chính xác')
       }
-
+      //check verify token expired
+      const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(dayjs());
+      if (!user.verifyTokenExpired || isVerifyTokenExpired) {
+        throw new BadRequestException('Verify token đã hết hạn')
+      }
       //check code id expired
       const isCodeExpired = dayjs(user.codeExpired).isBefore(dayjs());
       if (!user.codeExpired || isCodeExpired) {
@@ -230,7 +240,7 @@ export class UsersService {
       }
       const updateUser = await this.prisma.user.update({
         where: {
-          id: id
+          id: user.id
         },
         data: {
           isActive: true
@@ -260,13 +270,18 @@ export class UsersService {
       const now = Date.now();
       const requestLimitMs = 2 * 60 * 1000;
 
-      const user = await this.prisma.user.findUnique({
+      const user = await this.prisma.user.findFirst({
         where: {
-          id: resendOtpDTO.id
+          verifyToken: resendOtpDTO.verifyToken
         }
       })
       if (!user) {
         throw new NotFoundException('Không tìm thấy người dùng')
+      }
+      //check verify token expired
+      const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(dayjs());
+      if (!user.verifyTokenExpired || isVerifyTokenExpired) {
+        throw new BadRequestException('Verify token đã hết hạn')
       }
 
       if (user.codeExpired && now - user.codeExpired.getTime() < requestLimitMs) {
@@ -278,7 +293,7 @@ export class UsersService {
       const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
       const updateUser = await this.prisma.user.update({
         where: {
-          id: resendOtpDTO.id
+          id: user.id
         },
         data: {
           codeId: codeID,
