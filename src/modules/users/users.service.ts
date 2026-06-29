@@ -2,8 +2,8 @@ import { BadRequestException, ConflictException, Injectable, InternalServerError
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { hashPasswordHelper } from '@/helpers/utils';
-import { CreateAuthDto, ResendOtpDto, VerifyOtpDto } from '@/auth/dto/create-auth.dto';
+import { comparePasswordHelper, hashPasswordHelper } from '@/helpers/utils';
+import { CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from '@/auth/dto/create-auth.dto';
 import { nanoid, customAlphabet } from 'nanoid'
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -209,9 +209,9 @@ export class UsersService {
     };
   }
 
-  async handleVerifyOtp(verifyOtpDTO: VerifyOtpDto) {
+  async handleVerifyActivateOtp(verifyActivateOtpDTO: VerifyActivateOtpDto) {
     try {
-      const { verifyToken, codeId } = verifyOtpDTO;
+      const { verifyToken, codeId } = verifyActivateOtpDTO;
       const user = await this.prisma.user.findFirst({
         where: {
           verifyToken: verifyToken
@@ -285,7 +285,7 @@ export class UsersService {
       }
 
       if (user.codeExpired && now - user.codeExpired.getTime() < requestLimitMs) {
-        const remainMs = user.codeExpired.getTime() - now;
+        const remainMs = requestLimitMs - (now - user.codeExpired.getTime());
         const remainMinutes = Math.ceil(remainMs / 60000);
         throw new BadRequestException(`Vui lòng chờ ${remainMinutes} phút để gửi lại mã`);
       }
@@ -316,4 +316,166 @@ export class UsersService {
     }
   }
 
+  async handleSendForgotPasswordOtp(sendForgotPasswordOTPDto: SendForgotPasswordOTPDto) {
+    try {
+      const { email } = sendForgotPasswordOTPDto;
+      const now = Date.now();
+      const requestLimitMs = 2 * 60 * 1000;
+
+      const user = await this.prisma.user.findFirst({
+        where: {
+          email: email
+        }
+      })
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng')
+      }
+
+      //rate limit
+      const existingReset = await this.prisma.password_Resets.findFirst({
+        where: {
+          email: email
+        }
+      })
+      if (existingReset && now - existingReset.createdAt.getTime() < requestLimitMs) {
+        const remainMs = requestLimitMs - (now - existingReset.createdAt.getTime());
+        const remainMinutes = Math.ceil(remainMs / 60000);
+        throw new BadRequestException(`Vui lòng chờ ${remainMinutes} phút để gửi lại mã`);
+      }
+      const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
+      const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
+      const updateReset = await this.prisma.password_Resets.upsert({
+        where: {
+          email: email
+        },
+        update: {
+          codeId: codeID,
+          codeExpired: codeExpired,
+          is_verified: false,
+          createdAt: new Date()
+        },
+        create: {
+          email: email,
+          codeId: codeID,
+          codeExpired: codeExpired
+        }
+      })
+      //send email
+      await this.mailService.sendForgotPasswordOTPEmail(email, user.name, codeID);
+      return {
+        email: updateReset.email
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi gửi mã OTP');
+    }
+  }
+
+  async handleVerifyResetOtp(verifyResetPasswordOtpDTO: VerifyResetPasswordOtpDto) {
+    try {
+      const { email, codeId } = verifyResetPasswordOtpDTO;
+      const resetSession = await this.prisma.password_Resets.findFirst({
+        where: {
+          email: email
+        }
+      })
+      if (!resetSession) {
+        throw new NotFoundException('Không tìm thấy phiên đặt lại mật khẩu')
+      }
+
+      if (resetSession.is_verified) {
+        throw new BadRequestException('Phiên đặt lại mật khẩu đã được xác thực')
+      }
+
+      if (resetSession.codeId !== codeId) {
+        throw new BadRequestException('Mã xác thực không chính xác')
+      }
+      //check code id expired
+      const isCodeExpired = dayjs(resetSession.codeExpired).isBefore(dayjs());
+      if (!resetSession.codeExpired || isCodeExpired) {
+        throw new BadRequestException('Mã xác thực đã hết hạn')
+      }
+      const updateSession = await this.prisma.password_Resets.update({
+        where: {
+          email: email
+        },
+        data: {
+          is_verified: true,
+          updatedAt: new Date()
+        }
+      })
+      return true;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xác thực');
+    }
+  }
+
+  async handleResetPassword(resetPasswordDTO: ResetPasswordDto) {
+    try {
+      const { email, password } = resetPasswordDTO;
+      const resetSession = await this.prisma.password_Resets.findFirst({
+        where: {
+          email: email,
+          is_verified: true
+        }
+      })
+      if (!resetSession) {
+        throw new NotFoundException('Không tìm thấy phiên đặt lại mật khẩu')
+      }
+
+      if (!resetSession.is_verified) {
+        throw new BadRequestException('Phiên đặt lại mật khẩu chưa được xác thực')
+      }
+
+      if (resetSession.updatedAt && dayjs().isAfter(dayjs(resetSession.updatedAt).add(Number(process.env.RESET_PASSWORD_SESSION_EXPIRED), 'minute'))) {
+        throw new BadRequestException('Phiên đặt lại mật khẩu đã hết hạn. Vui lòng thực hiện lại từ đầu')
+      }
+      //check password same
+      const user = await this.prisma.user.findFirst({
+        where: {
+          email: email
+        }
+      })
+      if (user) {
+        const isValidPassword = await comparePasswordHelper(password, user?.password ?? '')
+        if (isValidPassword) {
+          throw new BadRequestException('Mật khẩu mới không được trùng với mật khẩu cũ')
+        }
+      }
+      const hashPassword = await hashPasswordHelper(password);
+      await this.prisma.user.update({
+        where: {
+          email: email
+        },
+        data: {
+          password: hashPassword
+        }
+      })
+      await this.prisma.password_Resets.delete({
+        where: {
+          email: email
+        }
+      })
+      return true;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi đặt lại mật khẩu');
+    }
+  }
 }

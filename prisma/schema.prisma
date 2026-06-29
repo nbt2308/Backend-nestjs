@@ -55,15 +55,27 @@ model User {
   verifyTokenExpired DateTime?
 
   // Quan hệ
-  posts          Post[]
-  courses        Course[] // Nếu là giảng viên
-  wishlists      Wishlist[]
-  postComments   PostComment[]
-  courseComments CourseComment[]
-  orders         Order[]
+  posts           Post[]
+  courses         Course[] // Nếu là giảng viên
+  wishlists       Wishlist[]
+  postComments    PostComment[]
+  courseComments  CourseComment[]
+  orders          Order[]
+  password_resets Password_Resets[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Password_Resets {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  codeId      String
+  codeExpired DateTime
+  is_verified Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  // Quan hệ
+  user        User     @relation(fields: [email], references: [email])
 }
 
 // 3. Hệ thống Khóa học (LMS)

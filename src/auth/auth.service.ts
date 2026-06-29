@@ -3,7 +3,7 @@ import { BadRequestException, Body, ConflictException, ForbiddenException, Injec
 import { UsersService } from '@/modules/users/users.service';
 import { comparePasswordHelper } from '@/helpers/utils';
 import { JwtService } from '@nestjs/jwt';
-import { CreateAuthDto, ResendOtpDto, VerifyOtpDto } from './dto/create-auth.dto';
+import { CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from './dto/create-auth.dto';
 import { OAuthDto } from './dto/oauth.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import dayjs from 'dayjs';
@@ -139,10 +139,20 @@ export class AuthService {
 
   }
 
-  async verifyOtp(verifyOtpDTO: VerifyOtpDto) {
-    return await this.usersService.handleVerifyOtp(verifyOtpDTO);
+  async verifyActivateOtp(verifyActivateOtpDTO: VerifyActivateOtpDto) {
+    return await this.usersService.handleVerifyActivateOtp(verifyActivateOtpDTO);
   }
   async resendOtp(resendOtpDTO: ResendOtpDto) {
     return await this.usersService.handleResendOtp(resendOtpDTO);
+  }
+
+  async sendResetPasswordOtp(sendForgotPasswordOTPDto: SendForgotPasswordOTPDto) {
+    return await this.usersService.handleSendForgotPasswordOtp(sendForgotPasswordOTPDto);
+  }
+  async verifyResetOtp(verifyResetPasswordOtpDTO: VerifyResetPasswordOtpDto) {
+    return await this.usersService.handleVerifyResetOtp(verifyResetPasswordOtpDTO);
+  }
+  async resetPassword(resetPasswordDTO: ResetPasswordDto) {
+    return await this.usersService.handleResetPassword(resetPasswordDTO);
   }
 }

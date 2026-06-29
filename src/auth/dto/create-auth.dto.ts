@@ -17,7 +17,7 @@ export class CreateAuthDto {
     name!: string;
 }
 
-export class VerifyOtpDto {
+export class VerifyActivateOtpDto {
     @IsNotEmpty({ message: 'Code ID không được để trống' })
     @Length(6, 6, { message: 'Code ID phải có 6 ký tự' })
     codeId!: string;
@@ -30,3 +30,29 @@ export class ResendOtpDto {
     @IsNotEmpty({ message: 'Verify token không được để trống' })
     verifyToken!: string;
 }
+
+export class SendForgotPasswordOTPDto {
+    @IsNotEmpty({ message: 'Email không được để trống' })
+    @IsEmail({}, { message: 'Email không đúng định dạng' })
+    email!: string;
+}
+export class VerifyResetPasswordOtpDto {
+    @IsNotEmpty({ message: 'Email không được để trống' })
+    @IsEmail({}, { message: 'Email không đúng định dạng' })
+    email!: string;
+
+    @IsNotEmpty({ message: 'Code ID không được để trống' })
+    @Length(6, 6, { message: 'Code ID phải có 6 ký tự' })
+    codeId!: string;
+}
+export class ResetPasswordDto {
+    @IsNotEmpty({ message: 'Email không được để trống' })
+    @IsEmail({}, { message: 'Email không đúng định dạng' })
+    email!: string;
+
+    @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
+    @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
+    @MaxLength(32, { message: 'Mật khẩu không được vượt quá 32 ký tự' })
+    password!: string;
+}
+
