@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from './dto/create-auth.dto';
+import { AdminLoginDto, CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from './dto/create-auth.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { LocalAuthGuard } from './passport/local-auth.guard';
@@ -20,6 +20,13 @@ export class AuthController {
   @Post('login')
   async handleLogin(@Request() req) {
     return await this.authService.login(req.user);
+  }
+
+  @ResponseMessage('Đăng nhập thành công')
+  @Public()
+  @Post('admin-login')
+  async handleAdminLogin(@Body() adminLoginDto: AdminLoginDto) {
+    return await this.authService.adminLogin(adminLoginDto);
   }
 
   @Public()

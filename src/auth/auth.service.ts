@@ -1,9 +1,9 @@
 
-import { BadRequestException, Body, ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '@/modules/users/users.service';
 import { comparePasswordHelper } from '@/helpers/utils';
 import { JwtService } from '@nestjs/jwt';
-import { CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from './dto/create-auth.dto';
+import { AdminLoginDto, CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from './dto/create-auth.dto';
 import { OAuthDto } from './dto/oauth.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import dayjs from 'dayjs';
@@ -63,12 +63,13 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { username: user.email, sub: user.id };
+    const payload = { username: user.email, sub: user.id, role: user.role, };
     return {
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
       access_token: this.jwtService.sign(payload),
     };
@@ -126,7 +127,8 @@ export class AuthService {
     //generate token
     const payload = {
       username: user.email,
-      sub: user.id
+      sub: user.id,
+      role: user.role,
     }
     return {
       user: {
@@ -154,5 +156,40 @@ export class AuthService {
   }
   async resetPassword(resetPasswordDTO: ResetPasswordDto) {
     return await this.usersService.handleResetPassword(resetPasswordDTO);
+  }
+  async adminLogin(adminLoginDto: AdminLoginDto) {
+    const { email, password } = adminLoginDto;
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email: email,
+        role: 'ADMIN'
+      }
+    })
+    if (!user) {
+      throw new UnauthorizedException('Email/Mật khẩu không chính xác')
+    }
+    if (!user.isActive) {
+      throw new ForbiddenException('Tài khoản chưa được kích hoạt')
+    }
+    const isValidPassword = await comparePasswordHelper(password, user?.password ?? '')
+    if (!isValidPassword) {
+      throw new UnauthorizedException('Email/Mật khẩu không chính xác')
+    }
+    //generate token
+    const payload = {
+      username: user.email,
+      sub: user.id,
+      role: user.role,
+    }
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      },
+      access_token: this.jwtService.sign(payload)
+    }
   }
 }
