@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { BulkDeleteDto, BulkStatusDto, UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { comparePasswordHelper, hashPasswordHelper } from '@/helpers/utils';
 import { CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from '@/auth/dto/create-auth.dto';
@@ -11,6 +11,7 @@ import { MailService } from '@/mail/mail.service';
 import { OAuthDto } from '@/auth/dto/oauth.dto';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
+import { uuidv7 } from "uuidv7";
 dayjs.extend(utc);
 @Injectable()
 export class UsersService {
@@ -39,8 +40,10 @@ export class UsersService {
         throw new BadRequestException('Email hoặc số điện thoại đã tồn tại')
       }
       const hashPassword = await hashPasswordHelper(password);
+      const id = uuidv7()
       const user = await this.prisma.user.create({
         data: {
+          id,
           name,
           email,
           phone,
@@ -59,21 +62,55 @@ export class UsersService {
 
   }
 
-  async findAll(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc') {
+  async findAll(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc', search?: string) {
     const allowedFields = ['name', 'email', 'createdAt'];
     const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
+
+    const whereCondition: any = {};
+
+    if (search && search.trim() !== "") {
+      whereCondition.OR = [
+        {
+          name: {
+            contains: search.trim(),
+            mode: 'insensitive', // Không phân biệt chữ hoa / chữ thường (Chỉ hỗ trợ tốt trên PostgreSQL)
+          },
+        },
+        {
+          email: {
+            contains: search.trim(),
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
 
     const skip = (page - 1) * limit;
     const take = limit;
     const [users, totalItems] = await Promise.all([
       this.prisma.user.findMany({
+        where: whereCondition,
         skip: skip,
         take: take,
         orderBy: {
           [finalSortBy]: sortOrder
-        }
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          avatar: true,
+          phone: true,
+          address: true,
+          isActive: true,
+          status: true,
+          createdAt: true,
+        },
       }),
-      this.prisma.user.count()
+      this.prisma.user.count({
+        where: whereCondition
+      })
     ])
     const totalPages = Math.ceil(totalItems / take);
     return { users, totalItems, totalPages };
@@ -91,6 +128,56 @@ export class UsersService {
     })
   }
 
+  async bulkStatus(bulkStatusDto: BulkStatusDto) {
+    try {
+      const { ids, status } = bulkStatusDto;
+      const result = await this.prisma.user.updateMany({
+        where: {
+          id: {
+            in: ids
+          }
+        },
+        data: {
+          status: status
+        }
+      })
+      return {
+        count: result.count
+      }
+    } catch (error) {
+      throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật trạng thái người dùng');
+    }
+  }
+  async bulkDelete(bulkDeleteDto: BulkDeleteDto) {
+    try {
+      const { ids } = bulkDeleteDto;
+      const user = await this.prisma.user.findMany({
+        where: {
+          id: {
+            in: ids
+          }
+        }
+      })
+      if (user.some((u: any) => u.role === "ADMIN")) {
+        throw new BadRequestException("Không thể xóa admin");
+      }
+      const result = await this.prisma.user.deleteMany({
+        where: {
+          id: {
+            in: ids
+          }
+        }
+      })
+      return {
+        count: result.count
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xóa người dùng');
+    }
+  }
   async update(updateUserDto: UpdateUserDto) {
     try {
       const { id, name, phone, address, avatar } = updateUserDto;
@@ -148,7 +235,7 @@ export class UsersService {
     }
   }
 
-  async remove(id: number) {
+  async remove(id: string) {
     try {
       const user = await this.prisma.user.findUnique({
         where: {

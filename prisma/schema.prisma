@@ -38,7 +38,7 @@ enum EnrollmentStatus {
 
 // 2. Bảng Người dùng
 model User {
-  id                 Int       @id @default(autoincrement())
+  id                 String    @id @default(uuid())
   email              String    @unique
   password           String?
   name               String
@@ -49,6 +49,7 @@ model User {
   googleId           String?   @unique
   githubId           String?   @unique
   isActive           Boolean   @default(false)
+  status             Boolean   @default(true)
   codeId             String?
   codeExpired        DateTime?
   verifyToken        String?
@@ -74,8 +75,36 @@ model Password_Resets {
   is_verified Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  // Quan hệ
-  user        User     @relation(fields: [email], references: [email])
+
+  // Quan hệ (liên kết qua trường email của User)
+  user User @relation(fields: [email], references: [email])
+}
+
+model AuditLog {
+  id        String  @id @default(uuid())
+  userId    String?
+  userEmail String?
+  userRole  String?
+
+  action     String
+  entityName String
+  entityId   String?
+
+  oldValues Json?
+  newValues Json?
+
+  ipAddress    String?
+  userAgent    String?
+  status       String  @default("SUCCESS")
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityName, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 // 3. Hệ thống Khóa học (LMS)
@@ -93,20 +122,22 @@ model Tag {
 }
 
 model Course {
-  id           Int     @id @default(autoincrement())
-  title        String
-  slug         String  @unique
-  description  String  @db.Text
-  thumbnail    String?
-  courseType   String  @default("FREE")
-  level        String  @default("BEGINNER")
-  status       Boolean @default(true)
-  price        Decimal @default(0) @db.Decimal(12, 2)
-  discount     Decimal @default(0) @db.Decimal(12, 2)
-  instructorId Int
-  instructor   User    @relation(fields: [instructorId], references: [id])
-  tagId        Int
-  tag          Tag     @relation(fields: [tagId], references: [id])
+  id          String  @id @default(uuid())
+  title       String
+  slug        String  @unique
+  description String  @db.Text
+  thumbnail   String?
+  courseType  String  @default("FREE")
+  level       String  @default("BEGINNER")
+  status      Boolean @default(true)
+  price       Decimal @default(0) @db.Decimal(12, 2)
+  discount    Decimal @default(0) @db.Decimal(12, 2)
+
+  instructorId String
+  instructor   User   @relation(fields: [instructorId], references: [id])
+
+  tagId Int
+  tag   Tag @relation(fields: [tagId], references: [id])
 
   sections Section[]
 
@@ -122,7 +153,7 @@ model Section {
   id       Int      @id @default(autoincrement())
   title    String
   order    Int
-  courseId Int
+  courseId String
   course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons  Lesson[]
 }
@@ -139,9 +170,9 @@ model Lesson {
 // 4. Wishlist
 model Wishlist {
   id        Int      @id @default(autoincrement())
-  userId    Int
+  userId    String
   user      User     @relation(fields: [userId], references: [id])
-  courseId  Int
+  courseId  String
   course    Course   @relation(fields: [courseId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -153,10 +184,10 @@ model Wishlist {
 model Order {
   id          Int              @id @default(autoincrement())
   orderNumber String           @unique
-  userId      Int
+  userId      String
   user        User             @relation(fields: [userId], references: [id])
   totalAmount Decimal          @db.Decimal(12, 2)
-  status      EnrollmentStatus @default(PENDING) // PENDING, SUCCESS, FAILED
+  status      EnrollmentStatus @default(PENDING)
 
   orderItems OrderItem[]
   createdAt  DateTime    @default(now())
@@ -166,8 +197,8 @@ model Order {
 model OrderItem {
   id       Int     @id @default(autoincrement())
   orderId  Int
-  courseId Int
-  price    Decimal @db.Decimal(12, 2) // Lưu giá tại thời điểm mua
+  courseId String
+  price    Decimal @db.Decimal(12, 2)
 
   order     Order    @relation(fields: [orderId], references: [id])
   course    Course   @relation(fields: [courseId], references: [id])
@@ -177,15 +208,17 @@ model OrderItem {
 
 // 6. Blog
 model Post {
-  id        Int           @id @default(autoincrement())
-  title     String
-  slug      String        @unique
-  content   String        @db.Text
-  likes     Int           @default(0)
-  dislikes  Int           @default(0)
-  views     Int           @default(0)
-  authorId  Int
-  author    User          @relation(fields: [authorId], references: [id])
+  id       Int    @id @default(autoincrement())
+  title    String
+  slug     String @unique
+  content  String @db.Text
+  likes    Int    @default(0)
+  dislikes Int    @default(0)
+  views    Int    @default(0)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
   comments  PostComment[]
   tagId     Int
   tag       Tag           @relation(fields: [tagId], references: [id])
@@ -201,9 +234,9 @@ model CourseComment {
   likes    Int    @default(0)
   dislikes Int    @default(0)
 
-  userId   Int
+  userId   String
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId Int
+  courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   // Cấu trúc Nested
@@ -221,10 +254,10 @@ model PostComment {
   likes    Int    @default(0)
   dislikes Int    @default(0)
 
-  userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   postId Int
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   // Cấu trúc Nested
   parentId Int?

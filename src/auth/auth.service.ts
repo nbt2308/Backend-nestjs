@@ -15,7 +15,7 @@ export class AuthService {
   async validateUser(username: string, password: string): Promise<any> {
     const user = await this.usersService.findByEmail(username);
     if (!user) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
+      throw new BadRequestException('Email hoặc mật khẩu không chính xác');
     }
     if (!user.password) {
       throw new ConflictException(
@@ -24,7 +24,7 @@ export class AuthService {
     }
     const isValidPassword = await comparePasswordHelper(password, user?.password ?? '')
     if (!isValidPassword) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
+      throw new BadRequestException('Email hoặc mật khẩu không chính xác');
     }
     else {
       if (user.isActive === false) {
@@ -55,6 +55,13 @@ export class AuthService {
           error: "Forbidden",
           message: 'Tài khoản chưa được kích hoạt',
           verifyToken: user.verifyToken
+        });
+      }
+      else if (user.status === false) {
+        throw new UnauthorizedException({
+          statusCode: 401,
+          error: "Unauthorized",
+          message: 'Tài khoản của bạn đã bị khóa',
         });
       }
     }
@@ -167,14 +174,17 @@ export class AuthService {
       }
     })
     if (!user) {
-      throw new UnauthorizedException('Email/Mật khẩu không chính xác')
+      throw new BadRequestException('Email/Mật khẩu không chính xác')
     }
     if (!user.isActive) {
       throw new ForbiddenException('Tài khoản chưa được kích hoạt')
     }
+    if (user.status === false) {
+      throw new UnauthorizedException('Tài khoản bị khoá')
+    }
     const isValidPassword = await comparePasswordHelper(password, user?.password ?? '')
     if (!isValidPassword) {
-      throw new UnauthorizedException('Email/Mật khẩu không chính xác')
+      throw new BadRequestException('Email/Mật khẩu không chính xác')
     }
     //generate token
     const payload = {

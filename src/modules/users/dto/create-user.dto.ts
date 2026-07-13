@@ -1,5 +1,5 @@
 import { Role } from "@prisma/client";
-import { IsEmail, IsEmpty, IsEnum, IsNotEmpty, IsPhoneNumber, IsString, MaxLength, MinLength } from "class-validator";
+import { IsBoolean, IsEmail, IsEmpty, IsEnum, IsNotEmpty, IsPhoneNumber, IsString, MaxLength, MinLength } from "class-validator";
 
 export class CreateUserDto {
     @IsNotEmpty({ message: 'Tên không được để trống' })
@@ -18,6 +18,14 @@ export class CreateUserDto {
     @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
     @MaxLength(32, { message: 'Mật khẩu không được vượt quá 32 ký tự' })
     password!: string;
+
+    @IsEnum(Role, { message: 'Vai trò không hợp lệ' })
+    @IsNotEmpty({ message: 'Vai trò không được để trống' })
+    role!: Role;
+
+    @IsBoolean({ message: 'Trạng thái không hợp lệ' })
+    @IsNotEmpty({ message: 'Trạng thái không được để trống' })
+    status!: boolean;
 
 
 }
