@@ -180,7 +180,7 @@ export class UsersService {
   }
   async update(updateUserDto: UpdateUserDto) {
     try {
-      const { id, name, phone, address, avatar } = updateUserDto;
+      const { id, name, phone, address, role, status } = updateUserDto;
 
       //check user exist
       const user = await this.prisma.user.findUnique({
@@ -212,7 +212,8 @@ export class UsersService {
           name: name,
           phone: phone,
           address: address,
-          avatar: avatar
+          role: role,
+          status: status
         }
       })
       return {
@@ -221,7 +222,8 @@ export class UsersService {
         email: updateUser.email,
         phone: updateUser.phone,
         address: updateUser.address,
-        avatar: updateUser.avatar
+        role: updateUser.role,
+        status: updateUser.status
       }
     }
     catch (error) {

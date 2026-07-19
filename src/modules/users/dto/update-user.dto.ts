@@ -1,4 +1,5 @@
-import { ArrayNotEmpty, IsArray, IsBoolean, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, MaxLength, MinLength, ValidateIf } from "class-validator";
+import { Role } from "@prisma/client";
+import { ArrayNotEmpty, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, MaxLength, MinLength, ValidateIf } from "class-validator";
 
 export class UpdateUserDto {
     @IsNotEmpty({ message: 'ID không được để trống' })
@@ -19,8 +20,12 @@ export class UpdateUserDto {
     address?: string;
 
     @IsOptional()
-    @IsString({ message: 'Avatar phải là chuỗi' })
-    avatar?: string;
+    @IsEnum(Role, { message: 'Vai trò không hợp lệ' })
+    role?: Role;
+
+    @IsOptional()
+    @IsBoolean({ message: 'Trạng thái không hợp lệ' })
+    status?: boolean;
 }
 
 export class BulkStatusDto {

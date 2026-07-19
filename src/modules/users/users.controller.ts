@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe,
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { BulkDeleteDto, BulkStatusDto, UpdateUserDto } from './dto/update-user.dto';
+import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 
 @Controller('users')
 export class UsersController {
@@ -30,6 +31,7 @@ export class UsersController {
   }
 
   @Patch()
+  @ResponseMessage('Cập nhật người dùng thành công')
   async update(@Body() updateUserDto: UpdateUserDto) {
     const result = await this.usersService.update(updateUserDto);
     return result;
