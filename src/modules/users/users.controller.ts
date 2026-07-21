@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, DefaultValuePipe, HttpCode, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { BulkDeleteDto, BulkStatusDto, UpdateUserDto } from './dto/update-user.dto';
+import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateUserDto } from './dto/update-user.dto';
 import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 
 @Controller('users')
@@ -9,6 +9,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
   @Post()
+  @ResponseMessage('Thêm người dùng thành công')
   async create(@Body() createUserDto: CreateUserDto) {
     const result = await this.usersService.createUser(createUserDto)
     return result;
@@ -37,18 +38,28 @@ export class UsersController {
     return result;
   }
 
+  @Post('change-status')
+  @ResponseMessage('Cập nhật trạng thái người dùng thành công')
+  @HttpCode(HttpStatus.OK)
+  async updateStatus(@Body() changeStatusDto: ChangeStatusDto) {
+    return await this.usersService.changeStatus(changeStatusDto);
+  }
+
   @Delete(':id')
+  @ResponseMessage('Xóa người dùng thành công')
   async remove(@Param('id') id: string) {
     return await this.usersService.remove(id);
   }
 
   @Post('bulk-delete')
+  @ResponseMessage('Xóa người dùng thành công')
   @HttpCode(HttpStatus.OK)
   async bulkDelete(@Body() bulkDeleteDto: BulkDeleteDto) {
     return await this.usersService.bulkDelete(bulkDeleteDto);
   }
 
   @Post('bulk-update-status')
+  @ResponseMessage('Cập nhật trạng thái người dùng thành công')
   @HttpCode(HttpStatus.OK)
   async bulkStatus(@Body() bulkStatusDto: BulkStatusDto) {
     return await this.usersService.bulkStatus(bulkStatusDto);

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { BulkDeleteDto, BulkStatusDto, UpdateUserDto } from './dto/update-user.dto';
+import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { comparePasswordHelper, hashPasswordHelper } from '@/helpers/utils';
 import { CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from '@/auth/dto/create-auth.dto';
@@ -148,6 +148,7 @@ export class UsersService {
       throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật trạng thái người dùng');
     }
   }
+
   async bulkDelete(bulkDeleteDto: BulkDeleteDto) {
     try {
       const { ids } = bulkDeleteDto;
@@ -178,6 +179,7 @@ export class UsersService {
       throw new InternalServerErrorException('Có lỗi xảy ra khi xóa người dùng');
     }
   }
+
   async update(updateUserDto: UpdateUserDto) {
     try {
       const { id, name, phone, address, role, status } = updateUserDto;
@@ -234,6 +236,38 @@ export class UsersService {
         throw error;
       }
       throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật');
+    }
+  }
+
+  async changeStatus(changeStatusDto: ChangeStatusDto) {
+    try {
+      const { id, status } = changeStatusDto;
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng')
+      }
+      const changeStatusUser = await this.prisma.user.update({
+        where: {
+          id: id
+        },
+        data: {
+          status: status
+        }
+      })
+      return {
+        id: changeStatusUser.id,
+        email: changeStatusUser.email
+      }
+    }
+    catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi thay đổi trạng thái');
     }
   }
 

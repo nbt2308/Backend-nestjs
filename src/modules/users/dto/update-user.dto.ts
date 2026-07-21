@@ -44,3 +44,12 @@ export class BulkDeleteDto {
     @IsString({ each: true, message: 'Mỗi ID trong mảng phải là một chuỗi ký tự' })
     ids!: string[];
 }
+export class ChangeStatusDto {
+    @IsString({ message: 'ID phải là chuỗi' })
+    @IsNotEmpty({ message: 'ID không được để trống' })
+    id!: string;
+
+    @IsBoolean({ message: 'Trạng thái không đúng định dạng' })
+    @IsNotEmpty({ message: 'Trạng thái không được để trống' })
+    status!: boolean;
+}
