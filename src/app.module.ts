@@ -18,6 +18,8 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/passport/jwt-auth.guard';
 import { MailModule } from './mail/mail.module';
 import { TransformInterceptor } from './core/transform.interceptor';
+import { MediaModule } from './media/media.module';
+import { TagsModule } from './modules/tags/tags.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
@@ -33,7 +35,9 @@ import { TransformInterceptor } from './core/transform.interceptor';
     OrderItemsModule,
     PrismaModule,
     AuthModule,
-    MailModule
+    MailModule,
+    MediaModule,
+    TagsModule
   ],
   controllers: [AppController],
   providers: [AppService,

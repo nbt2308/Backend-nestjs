@@ -12,6 +12,7 @@ import { OAuthDto } from '@/auth/dto/oauth.dto';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import { uuidv7 } from "uuidv7";
+import { Role } from '@prisma/client';
 dayjs.extend(utc);
 @Injectable()
 export class UsersService {
@@ -118,6 +119,27 @@ export class UsersService {
 
   findOne(id: number) {
     return `This action returns a #${id} user`;
+  }
+
+  async findAllInstructor() {
+    try {
+      return this.prisma.user.findMany({
+        where: {
+          role: Role.INSTRUCTOR,
+          status: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+          avatar: true,
+        },
+      });
+    } catch (error) {
+      throw new InternalServerErrorException('Có lỗi xảy ra khi lấy danh sách giảng viên');
+    }
   }
 
   async findByEmail(email: string) {

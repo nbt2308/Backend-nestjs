@@ -36,6 +36,17 @@ enum EnrollmentStatus {
   CANCELLED
 }
 
+enum CourseType {
+  FREE
+  PAID
+}
+
+enum Level {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
 // 2. Bảng Người dùng
 model User {
   id                 String    @id @default(uuid())
@@ -109,29 +120,30 @@ model AuditLog {
 
 // 3. Hệ thống Khóa học (LMS)
 model Tag {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique
-  slug        String  @unique
-  description String? @db.Text
-
-  courses Course[]
-  posts   Post[]
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  slug        String   @unique
+  description String?  @db.Text
+  status      Boolean  @default(true)
+  courses     Course[]
+  posts       Post[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Course {
-  id          String  @id @default(uuid())
-  title       String
-  slug        String  @unique
-  description String  @db.Text
-  thumbnail   String?
-  courseType  String  @default("FREE")
-  level       String  @default("BEGINNER")
-  status      Boolean @default(true)
-  price       Decimal @default(0) @db.Decimal(12, 2)
-  discount    Decimal @default(0) @db.Decimal(12, 2)
+  id                 String     @id @default(uuid())
+  title              String
+  slug               String     @unique
+  description        String     @db.Text
+  thumbnail          String?
+  thumbnail_publicID String?
+  courseType         CourseType @default(FREE)
+  level              Level      @default(BEGINNER)
+  status             Boolean    @default(true)
+  price              Decimal    @default(0) @db.Decimal(12, 2)
+  discount           Decimal    @default(0) @db.Decimal(12, 2)
 
   instructorId String
   instructor   User   @relation(fields: [instructorId], references: [id])

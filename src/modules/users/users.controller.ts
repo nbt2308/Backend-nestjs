@@ -26,6 +26,12 @@ export class UsersController {
     return this.usersService.findAll(page, limit, sortBy, sortOrder, search);
   }
 
+  @Get("instructor")
+  @ResponseMessage("Lấy danh sách giảng viên thành công")
+  async findAllInstructor() {
+    return this.usersService.findAllInstructor();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(+id);
