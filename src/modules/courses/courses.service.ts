@@ -113,6 +113,8 @@ export class CoursesService {
 
   async update(id: string, updateCourseDto: UpdateCourseDto) {
     try {
+      console.log('data', updateCourseDto);
+
       const course = await this.prisma.course.findUnique({
         where: {
           id: id
@@ -139,7 +141,7 @@ export class CoursesService {
           throw new BadRequestException('Giá giảm không được lớn hơn giá gốc')
         }
       }
-      let slug = "";
+      let slug = course.slug;
       if (updateCourseDto.title !== undefined && updateCourseDto.title !== course.title) {
 
         slug = generateSlug(updateCourseDto.title)
@@ -171,7 +173,7 @@ export class CoursesService {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật khóa học');
+      throw error;
     }
   }
 
