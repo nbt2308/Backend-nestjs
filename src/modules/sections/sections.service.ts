@@ -1,26 +1,115 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateSectionDto } from './dto/create-section.dto';
 import { UpdateSectionDto } from './dto/update-section.dto';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class SectionsService {
-  create(createSectionDto: CreateSectionDto) {
-    return 'This action adds a new section';
+  constructor(private prisma: PrismaService) { }
+
+  async create(createSectionDto: CreateSectionDto) {
+    try {
+      const course = await this.prisma.course.findUnique({
+        where: {
+          id: createSectionDto.courseId
+        }
+      })
+      if (!course) {
+        throw new NotFoundException('Không tìm thấy khoá học');
+      }
+      const section = await this.prisma.section.create({
+        data: createSectionDto
+      })
+      return section;
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(error.message);
+    }
   }
 
-  findAll() {
-    return `This action returns all sections`;
+  async findAll(courseId: string) {
+    try {
+      return this.prisma.section.findMany(
+        {
+          where: {
+            courseId: courseId
+          },
+          include: {
+            lessons: {
+              orderBy: {
+                order: 'asc'
+              }
+            }
+          },
+          orderBy: {
+            order: 'asc'
+          }
+        }
+      );
+    } catch (error) {
+      throw error;
+    }
   }
 
   findOne(id: number) {
     return `This action returns a #${id} section`;
   }
 
-  update(id: number, updateSectionDto: UpdateSectionDto) {
-    return `This action updates a #${id} section`;
+  async update(id: number, updateSectionDto: UpdateSectionDto) {
+    try {
+      const course = await this.prisma.course.findUnique({
+        where: {
+          id: updateSectionDto.courseId
+        }
+      })
+      if (!course) {
+        throw new NotFoundException('Không tìm thấy khoá học');
+      }
+      const section = await this.prisma.section.findUnique({
+        where: {
+          id: id,
+          courseId: updateSectionDto.courseId
+        }
+      })
+      if (!section) {
+        throw new NotFoundException('Không tìm thấy section');
+      }
+      return this.prisma.section.update({
+        where: {
+          id: id
+        },
+        data: updateSectionDto
+      })
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(error.message);
+    }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} section`;
+  async remove(id: number) {
+    try {
+      const section = await this.prisma.section.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!section) {
+        throw new NotFoundException('Không tìm thấy section');
+      }
+      return this.prisma.section.delete({
+        where: {
+          id: id
+        }
+      })
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(error.message);
+    }
   }
 }

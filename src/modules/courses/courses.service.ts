@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateCourseDto } from './dto/create-course.dto';
-import { UpdateCourseDto } from './dto/update-course.dto';
+import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateCourseDto } from './dto/update-course.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { generateSlug } from '@/helpers/slug.util';
 import { uuidv7 } from 'uuidv7';
@@ -111,11 +111,176 @@ export class CoursesService {
     return `This action returns a #${id} course`;
   }
 
-  update(id: number, updateCourseDto: UpdateCourseDto) {
-    return `This action updates a #${id} course`;
+  async update(id: string, updateCourseDto: UpdateCourseDto) {
+    try {
+      const course = await this.prisma.course.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!course) {
+        throw new NotFoundException('Không tìm thấy khóa học')
+      }
+      const effectiveCourseType = updateCourseDto.courseType ?? course.courseType;
+      let finalPrice = updateCourseDto.price ?? Number(course.price);
+      let finalDiscount = updateCourseDto.discount ?? Number(course.discount);
+
+      // Nếu là free -> ép giá và discount về 0
+      if (effectiveCourseType === CourseType.FREE) {
+        finalPrice = 0;
+        finalDiscount = 0;
+      }
+
+      if (effectiveCourseType === CourseType.PAID) {
+        if (Number(finalPrice) <= 0) {
+          throw new BadRequestException('Khóa học trả phí phải có giá lớn hơn 0')
+        }
+        if (Number(finalDiscount) > Number(finalPrice)) {
+          throw new BadRequestException('Giá giảm không được lớn hơn giá gốc')
+        }
+      }
+      let slug = "";
+      if (updateCourseDto.title !== undefined && updateCourseDto.title !== course.title) {
+
+        slug = generateSlug(updateCourseDto.title)
+        let checkExistSlug = await this.prisma.course.findUnique({
+          where: {
+            slug
+          }
+        })
+        if (checkExistSlug) {
+          slug = `${slug}-${Date.now().toString(36)}`
+        }
+      }
+      const updateCourse = await this.prisma.course.update({
+        where: {
+          id: id
+        },
+        data: {
+          ...updateCourseDto,
+          price: finalPrice,
+          discount: finalDiscount,
+          slug
+        }
+      })
+      return updateCourse
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật khóa học');
+    }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} course`;
+  async remove(id: string) {
+    try {
+      const course = await this.prisma.course.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!course) {
+        throw new NotFoundException('Không tìm thấy khóa học')
+      }
+      const removeCourse = await this.prisma.course.delete({
+        where: {
+          id: id
+        }
+      })
+      return {
+        id: removeCourse.id,
+        title: removeCourse.title
+      }
+    }
+    catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
+    }
+  }
+
+  async changeStatus(changeStatusDto: ChangeStatusDto) {
+    try {
+      const { id, status } = changeStatusDto;
+      const course = await this.prisma.course.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!course) {
+        throw new NotFoundException('Không tìm thấy khoá học')
+      }
+      const changeStatusCourse = await this.prisma.course.update({
+        where: {
+          id: id
+        },
+        data: {
+          status: status
+        }
+      })
+      return {
+        id: changeStatusCourse.id,
+        title: changeStatusCourse.title,
+      }
+    }
+    catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi thay đổi trạng thái');
+    }
+  }
+
+  async bulkStatus(bulkStatusDto: BulkStatusDto) {
+    try {
+      const { ids, status } = bulkStatusDto;
+      const result = await this.prisma.course.updateMany({
+        where: {
+          id: {
+            in: ids
+          }
+        },
+        data: {
+          status: status
+        }
+      })
+      return {
+        count: result.count
+      }
+    } catch (error) {
+      throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật trạng thái khoá học');
+    }
+  }
+
+  async bulkDelete(bulkDeleteDto: BulkDeleteDto) {
+    try {
+      const { ids } = bulkDeleteDto;
+      const course = await this.prisma.course.findMany({
+        where: {
+          id: {
+            in: ids
+          }
+        }
+      })
+      const result = await this.prisma.course.deleteMany({
+        where: {
+          id: {
+            in: ids
+          }
+        }
+      })
+      return {
+        count: result.count
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xóa khoá học');
+    }
   }
 }

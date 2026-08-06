@@ -475,6 +475,9 @@ export class UsersService {
       if (!user) {
         throw new NotFoundException('Không tìm thấy người dùng')
       }
+      if (!user.password) {
+        throw new BadRequestException('Email này đã được đăng ký bằng các phương thức khác. Vui lòng chọn đúng phương thức đăng nhập')
+      }
 
       //rate limit
       const existingReset = await this.prisma.password_Resets.findFirst({

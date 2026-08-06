@@ -1,20 +1,23 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { SectionsService } from './sections.service';
 import { CreateSectionDto } from './dto/create-section.dto';
 import { UpdateSectionDto } from './dto/update-section.dto';
+import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 
 @Controller('sections')
 export class SectionsController {
-  constructor(private readonly sectionsService: SectionsService) {}
+  constructor(private readonly sectionsService: SectionsService) { }
 
   @Post()
-  create(@Body() createSectionDto: CreateSectionDto) {
-    return this.sectionsService.create(createSectionDto);
+  @ResponseMessage('Tạo chương mới thành công')
+  async create(@Body() createSectionDto: CreateSectionDto) {
+    return await this.sectionsService.create(createSectionDto);
   }
 
   @Get()
-  findAll() {
-    return this.sectionsService.findAll();
+  @ResponseMessage('Lấy danh sách chương thành công')
+  async findAll(@Query("courseId") courseId: string) {
+    return await this.sectionsService.findAll(courseId);
   }
 
   @Get(':id')
@@ -23,12 +26,14 @@ export class SectionsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateSectionDto: UpdateSectionDto) {
-    return this.sectionsService.update(+id, updateSectionDto);
+  @ResponseMessage('Cập nhật chương của khoá học thành công')
+  update(@Param('id') id: number, @Body() updateSectionDto: UpdateSectionDto) {
+    return this.sectionsService.update(id, updateSectionDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.sectionsService.remove(+id);
+  @ResponseMessage('Xoá chương của khoá học thành công')
+  remove(@Param('id') id: number) {
+    return this.sectionsService.remove(id);
   }
 }

@@ -20,6 +20,7 @@ import { MailModule } from './mail/mail.module';
 import { TransformInterceptor } from './core/transform.interceptor';
 import { MediaModule } from './media/media.module';
 import { TagsModule } from './modules/tags/tags.module';
+import { YoutubeModule } from './youtube/youtube.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
@@ -37,7 +38,8 @@ import { TagsModule } from './modules/tags/tags.module';
     AuthModule,
     MailModule,
     MediaModule,
-    TagsModule
+    TagsModule,
+    YoutubeModule
   ],
   controllers: [AppController],
   providers: [AppService,
