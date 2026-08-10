@@ -148,8 +148,7 @@ model Course {
   instructorId String
   instructor   User   @relation(fields: [instructorId], references: [id])
 
-  tagId Int
-  tag   Tag @relation(fields: [tagId], references: [id])
+  tags Tag[]
 
   sections Section[]
 
@@ -242,8 +241,7 @@ model Post {
   author   User   @relation(fields: [authorId], references: [id])
 
   comments  PostComment[]
-  tagId     Int
-  tag       Tag           @relation(fields: [tagId], references: [id])
+  tags      Tag[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 }

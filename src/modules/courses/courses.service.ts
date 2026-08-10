@@ -42,16 +42,23 @@ export class CoursesService {
         slug = `${slug}-${Date.now().toString(36)}`;
       }
       const id = uuidv7();
+      const { tags, ...restDto } = createCourseDto;
       const course = await this.prisma.course.create({
         data: {
           id,
-          ...createCourseDto,
-          slug
-        }
+          ...restDto,
+          slug,
+          ...(tags && tags.length > 0 && {
+            tags: {
+              connect: tags.map((tagId) => ({ id: tagId })),
+            },
+          }),
+        },
+        include: { tags: true },
       })
       return course;
     } catch (error) {
-      // console.log(error);
+      console.log(error);
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -97,7 +104,8 @@ export class CoursesService {
         take: take,
         orderBy: {
           [finalSortBy]: sortOrder
-        }
+        },
+        include: { tags: true },
       }),
       this.prisma.course.count({
         where: whereCondition
@@ -153,16 +161,23 @@ export class CoursesService {
           slug = `${slug}-${Date.now().toString(36)}`
         }
       }
+      const { tags: tagIds, ...restUpdateDto } = updateCourseDto;
       const updateCourse = await this.prisma.course.update({
         where: {
           id: id
         },
         data: {
-          ...updateCourseDto,
+          ...restUpdateDto,
           price: finalPrice,
           discount: finalDiscount,
-          slug
-        }
+          slug,
+          ...(tagIds !== undefined && {
+            tags: {
+              set: tagIds.map((tagId) => ({ id: tagId })),
+            },
+          }),
+        },
+        include: { tags: true },
       })
       return updateCourse
     } catch (error) {
@@ -239,6 +254,16 @@ export class CoursesService {
   async bulkStatus(bulkStatusDto: BulkStatusDto) {
     try {
       const { ids, status } = bulkStatusDto;
+      const course = await this.prisma.course.findMany({
+        where: {
+          id: {
+            in: ids
+          }
+        }
+      })
+      if (course.length === 0) {
+        throw new BadRequestException('Không tìm thấy khóa học nào để cập nhật');
+      }
       const result = await this.prisma.course.updateMany({
         where: {
           id: {
@@ -267,6 +292,9 @@ export class CoursesService {
           }
         }
       })
+      if (course.length === 0) {
+        throw new BadRequestException('Không tìm thấy khóa học nào để xóa');
+      }
       const result = await this.prisma.course.deleteMany({
         where: {
           id: {

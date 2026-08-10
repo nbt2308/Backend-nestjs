@@ -1,6 +1,6 @@
 import { CourseType, Level } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsString, IsNotEmpty, IsNumber, IsOptional, Min, IsBoolean, IsDecimal, IsEnum, ValidateIf, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, Min, IsBoolean, IsDecimal, IsEnum, ValidateIf, Max, IsArray } from 'class-validator';
 
 export class CreateCourseDto {
     @IsString({ message: 'Tiêu đề phải là chuỗi' })
@@ -23,9 +23,10 @@ export class CreateCourseDto {
     @Min(0, { message: 'Giá giảm phải lớn hơn hoặc bằng 0' })
     discount!: number;
 
-    @IsNumber({}, { message: 'Thẻ khóa học phải là số' })
-    @IsNotEmpty({ message: 'Thẻ khóa học không được để trống' })
-    tagId!: number;
+    @IsArray({ message: 'Tags phải là một mảng' })
+    @IsNumber({}, { each: true, message: 'Mỗi Tag phải có định dạng số' })
+    @IsNotEmpty({ message: 'Tag không được để trống' })
+    tags!: number[];
 
     @IsEnum(["BEGINNER", "INTERMEDIATE", "ADVANCED"], { message: 'Cấp độ phải là một trong các giá trị: BEGINNER, INTERMEDIATE, ADVANCED' })
     @IsNotEmpty({ message: 'Cấp độ không được để trống' })
