@@ -86,65 +86,56 @@ export class AuthService {
   }
 
   async oauthLogin(oauthDTO: OAuthDto) {
-    let user = await this.prisma.user.findUnique({
-      where: {
-        email: oauthDTO.email
-      }
-    })
-    if (user) {
-      const updateData: any = {
-        name: oauthDTO.name,
-        avatar: oauthDTO.avatar,
-        isActive: true
-      }
+    const { email, name, avatar, provider, providerId } = oauthDTO;
+    const providerKey = provider === 'google' ? 'googleId' : 'githubId';
 
-      if (oauthDTO.provider === 'google') {
-        updateData.googleId = oauthDTO.providerId;
-      }
-      else if (oauthDTO.provider === 'github') {
-        updateData.githubId = oauthDTO.providerId;
-      }
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { [providerKey]: providerId },
+          { email: email },
+        ],
+      },
+    });
+
+    if (user) {
+      const updatedProviders = Array.from(new Set([...(user.provider ?? []), provider]))
 
       user = await this.prisma.user.update({
-        where: {
-          email: oauthDTO.email
+        where: { id: user.id },
+        data: {
+          isActive: true,
+          [providerKey]: providerId, // Tự động link ID nếu tài khoản cũ chưa có
+          provider: updatedProviders
         },
-        data: updateData
-      })
-
+      });
     } else {
-      const createData: any = {
-        email: oauthDTO.email,
-        name: oauthDTO.name,
-        avatar: oauthDTO.avatar
-      }
-
-      if (oauthDTO.provider === 'google') {
-        createData.googleId = oauthDTO.providerId;
-      }
-      else if (oauthDTO.provider === 'github') {
-        createData.githubId = oauthDTO.providerId;
-      }
-
+      // Nếu chưa có -> Tạo tài khoản mới
       user = await this.prisma.user.create({
-        data: createData
-      })
+        data: {
+          email,
+          name,
+          avatar,
+          isActive: true,
+          provider: [provider],
+          [providerKey]: providerId,
+        },
+      });
     }
-
-    //generate token
     const payload = {
       username: user.email,
       sub: user.id,
       role: user.role,
-    }
+    };
+
     return {
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
       },
-      access_token: this.jwtService.sign(payload)
-    }
+      access_token: this.jwtService.sign(payload),
+    };
 
   }
 

@@ -106,7 +106,9 @@ export class UsersService {
           address: true,
           isActive: true,
           status: true,
+          provider: true,
           createdAt: true,
+          updatedAt: true
         },
       }),
       this.prisma.user.count({
@@ -210,10 +212,22 @@ export class UsersService {
       const user = await this.prisma.user.findUnique({
         where: {
           id: id
+        },
+        include: {
+          _count: {
+            select: {
+              courses: true
+            }
+          }
         }
       })
       if (!user) {
         throw new NotFoundException('Không tìm thấy người dùng')
+      }
+      const isChangingFromInstructor = user.role === Role.INSTRUCTOR && updateUserDto.role && updateUserDto.role !== Role.INSTRUCTOR;
+      const hasActiveCourses = user._count.courses > 0;
+      if (isChangingFromInstructor && hasActiveCourses) {
+        throw new BadRequestException("Không thể thay đổi vai trò của giảng viên này vì hiện đang dạy trong 1 khoá học nào đó");
       }
       //validate exist phone
       if (phone) {
@@ -343,7 +357,8 @@ export class UsersService {
         codeId: codeID,
         codeExpired: codeExpired,
         verifyToken: verifyToken,
-        verifyTokenExpired: verifyTokenExpired
+        verifyTokenExpired: verifyTokenExpired,
+        provider: ["local"]
       }
     })
     //send email to verify account

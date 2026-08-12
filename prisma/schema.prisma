@@ -30,7 +30,7 @@ enum Role {
   STUDENT
 }
 
-enum EnrollmentStatus {
+enum OrderStatus {
   PENDING
   COMPLETED
   CANCELLED
@@ -45,6 +45,12 @@ enum Level {
   BEGINNER
   INTERMEDIATE
   ADVANCED
+}
+
+enum EnrollmentStatus {
+  ENROLLED // Đã ghi danh
+  IN_PROGRESS // Đang học
+  COMPLETED // Đã hoàn thành
 }
 
 // 2. Bảng Người dùng
@@ -65,6 +71,7 @@ model User {
   codeExpired        DateTime?
   verifyToken        String?
   verifyTokenExpired DateTime?
+  provider           String[]  @default([])
 
   // Quan hệ
   posts           Post[]
@@ -73,9 +80,19 @@ model User {
   postComments    PostComment[]
   courseComments  CourseComment[]
   orders          Order[]
+  enrollments     Enrollment[]
   password_resets Password_Resets[]
+  lessonProgress  LessonProgress[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+
+  @@index([role])
+  @@index([status])
+  @@index([isActive])
+  @@index([email])
+  @@index([phone])
+  @@index([name])
 }
 
 model Password_Resets {
@@ -152,23 +169,57 @@ model Course {
 
   sections Section[]
 
-  wishlists  Wishlist[]
-  comments   CourseComment[]
-  orderItems OrderItem[]
+  wishlists   Wishlist[]
+  comments    CourseComment[]
+  orderItems  OrderItem[]
+  enrollments Enrollment[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  @@index([instructorId])
+  @@index([courseType])
+  @@index([level])
+  @@index([status])
+  @@index([price])
+  @@index([discount])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model Enrollment {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  status   EnrollmentStatus @default(ENROLLED)
+  progress Float            @default(0) // Lưu tiến độ học từ 0% -> 100%
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId]) // Đảm bảo 1 user không thể ghi danh trùng 1 khóa học nhiều lần
 }
 
 model Section {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   title     String
   order     Int
   courseId  String
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons   Lesson[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([courseId])
+  @@index([order])
+  @@index([createdAt])
+  @@index([updatedAt])
 }
 
 model Lesson {
@@ -181,11 +232,26 @@ model Lesson {
   order     Int
   isPreview Boolean @default(false)
 
-  sectionId Int
-  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  sectionId      Int
+  section        Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lessonProgress LessonProgress[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model LessonProgress {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  lessonId Int
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  isCompleted Boolean  @default(true)
+  completedAt DateTime @default(now())
+
+  @@unique([userId, lessonId]) // 1 Học viên chỉ có 1 bản ghi tiến độ cho 1 bài học
 }
 
 // 4. Wishlist
@@ -203,12 +269,12 @@ model Wishlist {
 
 // 5. Order & OrderDetails
 model Order {
-  id          Int              @id @default(autoincrement())
-  orderNumber String           @unique
+  id          Int         @id @default(autoincrement())
+  orderNumber String      @unique
   userId      String
-  user        User             @relation(fields: [userId], references: [id])
-  totalAmount Decimal          @db.Decimal(12, 2)
-  status      EnrollmentStatus @default(PENDING)
+  user        User        @relation(fields: [userId], references: [id])
+  totalAmount Decimal     @db.Decimal(12, 2)
+  status      OrderStatus @default(PENDING)
 
   orderItems OrderItem[]
   createdAt  DateTime    @default(now())
