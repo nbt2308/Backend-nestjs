@@ -70,7 +70,9 @@ export class CoursesService {
     const allowedFields = ['name', 'email', 'createdAt'];
     const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
 
-    const whereCondition: any = {};
+    const whereCondition: any = {
+      deletedAt: null
+    };
 
     if (search && search.trim() !== "") {
       whereCondition.OR = [
@@ -209,6 +211,36 @@ export class CoursesService {
       return {
         id: removeCourse.id,
         title: removeCourse.title
+      }
+    }
+    catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
+    }
+  }
+  async softDelete(id: string) {
+    try {
+      const course = await this.prisma.course.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!course) {
+        throw new NotFoundException('Không tìm thấy khóa học')
+      }
+      const softDeleteCourse = await this.prisma.course.update({
+        where: {
+          id: id
+        },
+        data: {
+          deletedAt: new Date()
+        }
+      })
+      return {
+        id: softDeleteCourse.id,
+        title: softDeleteCourse.title
       }
     }
     catch (error) {

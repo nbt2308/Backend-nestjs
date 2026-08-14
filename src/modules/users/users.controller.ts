@@ -37,10 +37,10 @@ export class UsersController {
     return this.usersService.findOne(+id);
   }
 
-  @Patch()
+  @Patch(':id')
   @ResponseMessage('Cập nhật người dùng thành công')
-  async update(@Body() updateUserDto: UpdateUserDto) {
-    const result = await this.usersService.update(updateUserDto);
+  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+    const result = await this.usersService.update(id, updateUserDto);
     return result;
   }
 
@@ -55,6 +55,12 @@ export class UsersController {
   @ResponseMessage('Xóa người dùng thành công')
   async remove(@Param('id') id: string) {
     return await this.usersService.remove(id);
+  }
+
+  @Delete('soft/:id')
+  @ResponseMessage('Xóa người dùng thành công')
+  async softDelete(@Param('id') id: string) {
+    return await this.usersService.softDelete(id);
   }
 
   @Post('bulk-delete')

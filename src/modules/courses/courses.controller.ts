@@ -51,6 +51,12 @@ export class CoursesController {
     return await this.coursesService.remove(id);
   }
 
+  @Delete('soft/:id')
+  @ResponseMessage('Xóa khóa học thành công')
+  async softDelete(@Param('id') id: string) {
+    return await this.coursesService.softDelete(id);
+  }
+
   @Post('bulk-delete')
   @ResponseMessage('Xóa khoá học thành công')
   @HttpCode(HttpStatus.OK)

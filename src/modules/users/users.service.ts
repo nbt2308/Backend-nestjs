@@ -13,6 +13,7 @@ import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import { uuidv7 } from "uuidv7";
 import { Role } from '@prisma/client';
+import { error } from 'node:console';
 dayjs.extend(utc);
 @Injectable()
 export class UsersService {
@@ -67,7 +68,9 @@ export class UsersService {
     const allowedFields = ['name', 'email', 'createdAt'];
     const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
 
-    const whereCondition: any = {};
+    const whereCondition: any = {
+      deletedAt: null
+    };
 
     if (search && search.trim() !== "") {
       whereCondition.OR = [
@@ -129,6 +132,7 @@ export class UsersService {
         where: {
           role: Role.INSTRUCTOR,
           status: true,
+          deletedAt: null
         },
         select: {
           id: true,
@@ -147,7 +151,8 @@ export class UsersService {
   async findByEmail(email: string) {
     return await this.prisma.user.findFirst({
       where: {
-        email: email
+        email: email,
+        deletedAt: null
       }
     })
   }
@@ -183,8 +188,8 @@ export class UsersService {
           }
         }
       })
-      if (user.some((u: any) => u.role === "ADMIN")) {
-        throw new BadRequestException("Không thể xóa admin");
+      if (user.some((u: any) => u.role === Role.ADMIN)) {
+        throw new BadRequestException("Không thể xóa Admin");
       }
       const result = await this.prisma.user.deleteMany({
         where: {
@@ -204,9 +209,9 @@ export class UsersService {
     }
   }
 
-  async update(updateUserDto: UpdateUserDto) {
+  async update(id: string, updateUserDto: UpdateUserDto) {
     try {
-      const { id, name, phone, address, role, status } = updateUserDto;
+      const { name, phone, address, role, status } = updateUserDto;
 
       //check user exist
       const user = await this.prisma.user.findUnique({
@@ -331,6 +336,32 @@ export class UsersService {
         throw error;
       }
       throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
+    }
+  }
+
+  async softDelete(id: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: id
+        }
+      })
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng')
+      }
+      if (user.role === Role.ADMIN) {
+        throw new BadRequestException('Không thể xoá Admin')
+      }
+      return await this.prisma.user.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      })
+    }
+    catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xoá người dùng');
     }
   }
 
