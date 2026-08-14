@@ -107,9 +107,12 @@ export class LessonsService {
       if (!lesson) {
         throw new BadRequestException("Không tìm thấy bài giảng")
       }
-      await this.prisma.lesson.delete({
+      await this.prisma.lesson.update({
         where: {
           id: id
+        },
+        data: {
+          deletedAt: new Date(),
         }
       })
       return lesson;

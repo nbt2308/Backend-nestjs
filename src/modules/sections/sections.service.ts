@@ -34,10 +34,14 @@ export class SectionsService {
       return this.prisma.section.findMany(
         {
           where: {
-            courseId: courseId
+            courseId: courseId,
+            deletedAt: null
           },
           include: {
             lessons: {
+              where: {
+                deletedAt: null
+              },
               orderBy: {
                 order: 'asc'
               }
@@ -100,9 +104,12 @@ export class SectionsService {
       if (!section) {
         throw new NotFoundException('Không tìm thấy section');
       }
-      return this.prisma.section.delete({
+      return this.prisma.section.update({
         where: {
           id: id
+        },
+        data: {
+          deletedAt: new Date()
         }
       })
     } catch (error: any) {
