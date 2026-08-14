@@ -99,6 +99,9 @@ export class AuthService {
     });
 
     if (user) {
+      if (user.deletedAt !== null) {
+        throw new UnauthorizedException("Tài khoản của bạn đã bị xoá hoặc khoá. Vui lòng liên hệ cho đội ngũ CSKH để được hỗ trợ");
+      }
       const updatedProviders = Array.from(new Set([...(user.provider ?? []), provider]))
 
       user = await this.prisma.user.update({
