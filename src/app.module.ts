@@ -21,6 +21,7 @@ import { TransformInterceptor } from './core/transform.interceptor';
 import { MediaModule } from './media/media.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { YoutubeModule } from './youtube/youtube.module';
+import { HomeModule } from './modules/home/home.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
@@ -39,7 +40,8 @@ import { YoutubeModule } from './youtube/youtube.module';
     MailModule,
     MediaModule,
     TagsModule,
-    YoutubeModule
+    YoutubeModule,
+    HomeModule
   ],
   controllers: [AppController],
   providers: [AppService,

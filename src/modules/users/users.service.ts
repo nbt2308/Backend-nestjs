@@ -191,11 +191,14 @@ export class UsersService {
       if (user.some((u: any) => u.role === Role.ADMIN)) {
         throw new BadRequestException("Không thể xóa Admin");
       }
-      const result = await this.prisma.user.deleteMany({
+      const result = await this.prisma.user.updateMany({
         where: {
           id: {
             in: ids
           }
+        },
+        data: {
+          deletedAt: new Date()
         }
       })
       return {

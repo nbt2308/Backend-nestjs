@@ -67,7 +67,10 @@ export class CoursesService {
   }
 
   async findAll(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc', search?: string) {
-    const allowedFields = ['name', 'email', 'createdAt'];
+    const allowedFields = [
+      'title',
+      'createdAt',
+    ];
     const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
 
     const whereCondition: any = {
@@ -327,11 +330,14 @@ export class CoursesService {
       if (course.length === 0) {
         throw new BadRequestException('Không tìm thấy khóa học nào để xóa');
       }
-      const result = await this.prisma.course.deleteMany({
+      const result = await this.prisma.course.updateMany({
         where: {
           id: {
             in: ids
           }
+        },
+        data: {
+          deletedAt: new Date()
         }
       })
       return {
@@ -343,5 +349,138 @@ export class CoursesService {
       }
       throw new InternalServerErrorException('Có lỗi xảy ra khi xóa khoá học');
     }
+  }
+
+  async findPopularCourses(limit: number) {
+    try {
+      if (!limit || limit <= 0) {
+        throw new BadRequestException('Số lượng khóa học phải lớn hơn 0');
+      }
+      const featuredCourses = await this.prisma.course.findMany({
+        where: {
+          status: true,
+          deletedAt: null
+        },
+        orderBy: {
+          studentCount: 'desc'
+        },
+
+        take: limit,
+
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          thumbnail: true,
+          courseType: true,
+          level: true,
+          price: true,
+          discount: true,
+          studentCount: true,
+          reviewCount: true,
+          averageRating: true,
+
+          instructor: {
+            select: {
+              name: true,
+              avatar: true,
+            },
+          },
+
+          tags: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+      return featuredCourses;
+    }
+    catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi lấy danh sách khoá học phổ biến');
+    }
+
+  }
+
+  async findAllCourseForUser(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc', search?: string) {
+    const allowedFields = [
+      'title',
+      'createdAt',
+      'studentCount',
+      'averageRating',
+    ];
+    const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
+
+    const whereCondition: any = {
+      status: true,
+      deletedAt: null
+    };
+
+    if (search && search.trim() !== "") {
+      whereCondition.OR = [
+        {
+          name: {
+            contains: search.trim(),
+            mode: 'insensitive', // Không phân biệt chữ hoa / chữ thường (Chỉ hỗ trợ tốt trên PostgreSQL)
+          },
+        },
+        {
+          slug: {
+            contains: search.trim(),
+            mode: 'insensitive',
+          },
+        },
+        {
+          description: {
+            contains: search.trim(),
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const take = limit;
+    const [courses, totalItems] = await Promise.all([
+      this.prisma.course.findMany({
+        where: whereCondition,
+        skip: skip,
+        take: take,
+        orderBy: {
+          [finalSortBy]: sortOrder
+        },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          thumbnail: true,
+
+          studentCount: true,
+          reviewCount: true,
+          averageRating: true,
+
+          instructor: {
+            select: {
+              name: true,
+              avatar: true,
+            },
+          },
+
+          tags: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+      this.prisma.course.count({
+        where: whereCondition
+      })
+    ])
+    const totalPages = Math.ceil(totalItems / take);
+    return { courses, totalItems, totalPages };
   }
 }

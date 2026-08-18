@@ -78,7 +78,7 @@ model User {
   courses         Course[] // Nếu là giảng viên
   wishlists       Wishlist[]
   postComments    PostComment[]
-  courseComments  CourseComment[]
+  courseReviews   CourseReview[]
   orders          Order[]
   enrollments     Enrollment[]
   password_resets Password_Resets[]
@@ -162,19 +162,22 @@ model Course {
   price              Decimal    @default(0) @db.Decimal(12, 2)
   discount           Decimal    @default(0) @db.Decimal(12, 2)
 
-  instructorId String
-  instructor   User   @relation(fields: [instructorId], references: [id])
+  studentCount  Int    @default(0)
+  reviewCount   Int    @default(0)
+  averageRating Float  @default(0)
+  instructorId  String
+  instructor    User   @relation(fields: [instructorId], references: [id])
 
   tags Tag[]
 
   sections Section[]
 
   wishlists   Wishlist[]
-  comments    CourseComment[]
+  reviews     CourseReview[]
   orderItems  OrderItem[]
   enrollments Enrollment[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   deletedAt   DateTime?
 
   @@index([instructorId])
@@ -296,16 +299,18 @@ model OrderItem {
 
 // 6. Blog
 model Post {
-  id       Int    @id @default(autoincrement())
-  title    String
-  slug     String @unique
-  content  String @db.Text
-  likes    Int    @default(0)
-  dislikes Int    @default(0)
-  views    Int    @default(0)
-
-  authorId String
-  author   User   @relation(fields: [authorId], references: [id])
+  id                 Int     @id @default(autoincrement())
+  title              String
+  slug               String  @unique
+  content            String  @db.Text
+  thumbnail          String?
+  thumbnail_publicID String?
+  likes              Int     @default(0)
+  dislikes           Int     @default(0)
+  views              Int     @default(0)
+  isPublished        Boolean @default(true)
+  authorId           String
+  author             User    @relation(fields: [authorId], references: [id])
 
   comments  PostComment[]
   tags      Tag[]
@@ -313,8 +318,8 @@ model Post {
   updatedAt DateTime      @updatedAt
 }
 
-// 7. Hệ thống Nested Comment (Cơ bản: Cha - Con)
-model CourseComment {
+// 7. Course Review
+model CourseReview {
   id       Int    @id @default(autoincrement())
   content  String @db.Text
   rating   Int    @default(5)
@@ -326,13 +331,10 @@ model CourseComment {
   courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-  // Cấu trúc Nested
-  parentId Int?
-  parent   CourseComment?  @relation("CourseCommentToComment", fields: [parentId], references: [id], onDelete: Cascade)
-  replies  CourseComment[] @relation("CourseCommentToComment")
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
 }
 
 model PostComment {
