@@ -16,3 +16,20 @@ export const comparePasswordHelper = async (plainPassword: string, hashPassword:
         throw error;
     }
 }
+export const normalizeStringArray = (value?: string | string[]) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.flatMap((item) => String(item).split(',')).map((item) => item.trim()).filter(Boolean);
+    return String(value).split(',').map((item) => item.trim()).filter(Boolean);
+};
+export const normalizeNumberArray = (
+    value?: string | string[] | number | number[] | null
+): number[] => {
+    if (value == null) return [];
+
+    const values = Array.isArray(value) ? value : [value];
+
+    return values
+        .flatMap((item) => String(item).split(','))
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isInteger(item));
+};
