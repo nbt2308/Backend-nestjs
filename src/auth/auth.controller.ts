@@ -79,4 +79,11 @@ export class AuthController {
     return await this.authService.resetPassword(resetPasswordDto);
   }
 
+  @Public()
+  @ResponseMessage('Refresh token thành công')
+  @Post('refresh')
+  async handleRefreshToken(@Body() body: { refreshToken: string }) {
+    return await this.authService.refreshToken(body.refreshToken);
+  }
+
 }

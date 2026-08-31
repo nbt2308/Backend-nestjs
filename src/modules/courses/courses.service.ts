@@ -5,7 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { generateSlug } from '@/helpers/slug.util';
 import { uuidv7 } from 'uuidv7';
 import { CourseType, Level, Prisma } from '@prisma/client';
-import { normalizeNumberArray, normalizeStringArray } from '@/helpers/utils';
+import { normalizeNumberArray, normalizeStringArray } from '@/helpers/normalizeArray.utils';
 
 @Injectable()
 export class CoursesService {

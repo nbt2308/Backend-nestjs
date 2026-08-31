@@ -83,6 +83,7 @@ model User {
   enrollments     Enrollment[]
   password_resets Password_Resets[]
   lessonProgress  LessonProgress[]
+  refreshTokens    RefreshToken[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   deletedAt       DateTime?
@@ -93,6 +94,21 @@ model User {
   @@index([email])
   @@index([phone])
   @@index([name])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Password_Resets {
