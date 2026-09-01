@@ -22,9 +22,12 @@ import { MediaModule } from './media/media.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { YoutubeModule } from './youtube/youtube.module';
 import { HomeModule } from './modules/home/home.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { AuthCronService } from './auth/auth-cron.service';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
+    ScheduleModule.forRoot(),
     UsersModule,
     CoursesModule,
     SectionsModule,
@@ -41,10 +44,11 @@ import { HomeModule } from './modules/home/home.module';
     MediaModule,
     TagsModule,
     YoutubeModule,
-    HomeModule
+    HomeModule,
   ],
   controllers: [AppController],
   providers: [AppService,
+    AuthCronService,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

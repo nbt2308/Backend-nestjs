@@ -20,7 +20,6 @@ export class AuthService {
         private prisma: PrismaService,
         private configService: ConfigService,
     ) { }
-
     /**
      * Tạo cặp access_token + refresh_token
      */
@@ -281,16 +280,22 @@ export class AuthService {
                 }
             })
             if (!storedToken) {
-                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn1');
+                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
             }
             if (storedToken.revokedAt) {
-                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn2');
+                // PHÁT HIỆN TẤN CÔNG LẶP LẠI (ABUSE DETECTION)
+                // Thu hồi toàn bộ token của User này ngay lập tức!
+                await this.prisma.refreshToken.updateMany({
+                    where: { userId: storedToken.userId },
+                    data: { revokedAt: new Date() }
+                });
+                throw new UnauthorizedException('Cảnh báo bảo mật: Refresh token đã bị sử dụng lại. Toàn bộ phiên đăng nhập đã bị hủy.');
             }
             if (storedToken.expiresAt < new Date()) {
-                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn3');
+                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
             }
             if (payload.sub !== storedToken.userId) {
-                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn4');
+                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
             }
             // Tạo cặp token mới
             const newPayload = {
