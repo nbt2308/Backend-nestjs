@@ -13,7 +13,7 @@ export class CoursesController {
 
     @Public()
     @ResponseMessage('Lấy danh sách khóa học thành công')
-    @Get('user')
+    @Get('courses-for-user')
     async findAllCourseForUser(
         @Query() query: QueryCourseDto,
     ) {

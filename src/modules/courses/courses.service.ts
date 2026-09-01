@@ -4,7 +4,7 @@ import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateCourseDto } from '
 import { PrismaService } from '../../prisma/prisma.service';
 import { generateSlug } from '@/helpers/slug.util';
 import { uuidv7 } from 'uuidv7';
-import { CourseType, Level, Prisma } from '@prisma/client';
+import { CourseType } from '@prisma/client';
 import { normalizeNumberArray, normalizeStringArray } from '@/helpers/normalizeArray.utils';
 
 @Injectable()
@@ -419,7 +419,7 @@ export class CoursesService {
             tag?: number | number[];
         }
     ) {
-        const allowedFields = ['title', 'createdAt', 'studentCount', 'averageRating', 'price', 'discount'];
+        const allowedFields = ['title', 'createdAt', 'studentCount', 'averageRating',];
         const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
 
 
@@ -429,183 +429,41 @@ export class CoursesService {
         const parsedRating = filters?.rating ?? null;
 
 
-        const baseWhere: any = {
+        const whereCondition: any = {
             status: true,
             deletedAt: null,
-        };
-        const whereCondition: any = {
-            ...baseWhere,
-
             ...(levelValues.length > 0 && {
-                level: {
-                    in: levelValues,
-                },
+                level: { in: levelValues },
             }),
-
             ...(courseTypeValues.length > 0 && {
-                courseType: {
-                    in: courseTypeValues,
-                },
+                courseType: { in: courseTypeValues },
             }),
-
             ...(parsedRating !== null && !Number.isNaN(parsedRating) && {
                 averageRating: {
                     gte: parsedRating,
                 },
             }),
-
             ...(tagValues.length > 0 && {
                 tags: {
                     some: {
                         id: {
-                            in: tagValues,
+                            in: tagValues
                         },
                     },
                 },
             }),
         };
+
         if (search && search.trim() !== '') {
             const keyword = search.trim();
-            baseWhere.OR = [
+            whereCondition.OR = [
                 { title: { contains: keyword, mode: 'insensitive' } },
                 { slug: { contains: keyword, mode: 'insensitive' } },
             ];
         }
         const skip = (page - 1) * limit;
 
-
-        //Count
-        const levelWhere = {
-            ...baseWhere,
-
-            ...(courseTypeValues.length > 0 && {
-                courseType: {
-                    in: courseTypeValues,
-                },
-            }),
-
-            ...(parsedRating !== null &&
-                !Number.isNaN(parsedRating) && {
-                averageRating: {
-                    gte: parsedRating,
-                },
-            }),
-
-            ...(tagValues.length > 0 && {
-                tags: {
-                    some: {
-                        id: {
-                            in: tagValues,
-                        },
-                    },
-                },
-            }),
-        };
-
-        const courseTypeWhere = {
-            ...baseWhere,
-
-            ...(levelValues.length > 0 && {
-                level: {
-                    in: levelValues,
-                },
-            }),
-
-            ...(parsedRating !== null &&
-                !Number.isNaN(parsedRating) && {
-                averageRating: {
-                    gte: parsedRating,
-                },
-            }),
-
-            ...(tagValues.length > 0 && {
-                tags: {
-                    some: {
-                        id: {
-                            in: tagValues,
-                        },
-                    },
-                },
-            }),
-        };
-
-        const ratingWhere = {
-            ...baseWhere,
-
-            ...(levelValues.length > 0 && {
-                level: {
-                    in: levelValues,
-                },
-            }),
-
-            ...(courseTypeValues.length > 0 && {
-                courseType: {
-                    in: courseTypeValues,
-                },
-            }),
-
-            ...(tagValues.length > 0 && {
-                tags: {
-                    some: {
-                        id: {
-                            in: tagValues,
-                        },
-                    },
-                },
-            }),
-        };
-        // =========================
-        // Rating buckets
-        // =========================
-
-        const ratingCounts = await Promise.all([
-            this.prisma.course.count({
-                where: {
-                    ...ratingWhere,
-                    averageRating: {
-                        gte: 4.5,
-                    },
-                },
-            }),
-
-            this.prisma.course.count({
-                where: {
-                    ...ratingWhere,
-                    averageRating: {
-                        gte: 4.0,
-                    },
-                },
-            }),
-
-            this.prisma.course.count({
-                where: {
-                    ...ratingWhere,
-                    averageRating: {
-                        gte: 3.0,
-                    },
-                },
-            }),
-
-            this.prisma.course.count({
-                where: {
-                    ...ratingWhere,
-                    averageRating: {
-                        gte: 2.0,
-                    },
-                },
-            }),
-        ]);
-
-        // =========================
-        // Courses + total + facets
-        // =========================
-
-        const [
-            courses,
-            totalItems,
-            levelCounts,
-            courseTypeCounts,
-        ] = await Promise.all([
+        const [courses, totalItems] = await Promise.all([
             this.prisma.course.findMany({
                 where: whereCondition,
                 orderBy: {
@@ -627,81 +485,18 @@ export class CoursesService {
                     },
                 },
             }),
-
             this.prisma.course.count({
                 where: whereCondition,
             }),
-
-            this.prisma.course.groupBy({
-                by: ['level'],
-                where: levelWhere,
-                _count: {
-                    _all: true,
-                },
-            }),
-
-            this.prisma.course.groupBy({
-                by: ['courseType'],
-                where: courseTypeWhere,
-                _count: {
-                    _all: true,
-                },
-            }),
-        ]);
+        ])
 
         const totalPages = Math.ceil(totalItems / limit);
-
-        const filtersCount = {
-            level: {
-                BEGINNER:
-                    levelCounts.find(
-                        (item) => item.level === Level.BEGINNER
-                    )?._count._all ?? 0,
-
-                INTERMEDIATE:
-                    levelCounts.find(
-                        (item) => item.level === Level.INTERMEDIATE
-                    )?._count._all ?? 0,
-
-                ADVANCED:
-                    levelCounts.find(
-                        (item) => item.level === Level.ADVANCED
-                    )?._count._all ?? 0,
-            },
-
-            courseType: {
-                FREE:
-                    courseTypeCounts.find(
-                        (item) => item.courseType === CourseType.FREE
-                    )?._count._all ?? 0,
-
-                PAID:
-                    courseTypeCounts.find(
-                        (item) => item.courseType === CourseType.PAID
-                    )?._count._all ?? 0,
-            },
-
-            rating: {
-                '4.5':
-                    ratingCounts[0],
-
-                '4.0':
-                    ratingCounts[1],
-
-                '3.0':
-                    ratingCounts[2],
-
-                '2.0':
-                    ratingCounts[3],
-            },
-        };
 
         return {
             courses,
             totalItems,
             totalPages,
-            filtersCount,
-        };
+        }
 
 
 

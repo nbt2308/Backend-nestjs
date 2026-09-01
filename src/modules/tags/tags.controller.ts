@@ -35,7 +35,7 @@ export class TagsController {
     }
 
     @Public()
-    @Get("user")
+    @Get("tags-for-user")
     @ResponseMessage("Lấy danh sách tất cả tag thành công")
     async findAllForUser() {
         return this.tagsService.findAllForUser();
