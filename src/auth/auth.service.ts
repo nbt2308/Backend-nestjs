@@ -23,7 +23,7 @@ export class AuthService {
     /**
      * Tạo cặp access_token + refresh_token
      */
-    private generateTokenPair(payload: { username: string; sub: string}) {
+    private generateTokenPair(payload: { username: string; sub: string }) {
         const access_token = this.jwtService.sign(payload);
 
         const refresh_token = this.jwtService.sign(payload, {
@@ -342,6 +342,76 @@ export class AuthService {
             throw new InternalServerErrorException('Có lỗi xảy ra khi refresh token. Vui lòng thử lại sau');
 
         }
+    }
+
+
+    async getMe(userId: string) {
+        try {
+            const user = await this.prisma.user.findUnique({
+                where: {
+                    id: userId,
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    avatar: true,
+
+                    roles: {
+                        select: {
+                            role: {
+                                select: {
+                                    name: true,
+                                    permissions: {
+                                        select: {
+                                            permission: {
+                                                select: {
+                                                    name: true,
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+            if (!user) {
+                throw new BadRequestException("Không tìm thấy tài khoản")
+            }
+            const roles = user.roles.map(
+                (userRole) => userRole.role.name,
+            );
+
+            const permissions = [
+                ...new Set(
+                    user.roles.flatMap(
+                        (role) =>
+                            role.role.permissions.map(
+                                (permission) =>
+                                    permission.permission.name,
+                            ),
+                    ),
+                ),
+            ];
+
+            return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                avatar: user.avatar,
+                roles,
+                permissions,
+            };
+        }
+        catch (err) {
+            if (err instanceof BadRequestException) {
+                throw err;
+            }
+            throw new InternalServerErrorException('Có lỗi xảy ra khi get user. Vui lòng thử lại sau');
+        }
+
     }
 }
 
