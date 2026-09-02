@@ -8,6 +8,8 @@ import { JwtAuthGuard } from './passport/jwt-auth.guard';
 import { Public } from '@/decorator/public.decorator';
 import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 import { OAuthDto } from './dto/oauth.dto';
+import { CurrentUser } from '@/decorator/current-user.decorator';
+import type { AuthUser } from './interfaces/auth-user.interface';
 
 
 @Controller('auth')
@@ -84,6 +86,11 @@ export class AuthController {
   @Post('refresh')
   async handleRefreshToken(@Body() body: { refreshToken: string }) {
     return await this.authService.refreshToken(body.refreshToken);
+  }
+
+  @Get('me')
+  getMe(@CurrentUser() user: AuthUser) {
+    return this.authService.getMe(user.id);
   }
 
 }
