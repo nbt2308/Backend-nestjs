@@ -23,7 +23,7 @@ export class AuthService {
     /**
      * Tạo cặp access_token + refresh_token
      */
-    private generateTokenPair(payload: { username: string; sub: string; role: string }) {
+    private generateTokenPair(payload: { username: string; sub: string}) {
         const access_token = this.jwtService.sign(payload);
 
         const refresh_token = this.jwtService.sign(payload, {
@@ -94,7 +94,7 @@ export class AuthService {
 
     async login(user: any) {
         try {
-            const payload = { username: user.email, sub: user.id, role: user.role, };
+            const payload = { username: user.email, sub: user.id };
             const { access_token, refresh_token } = this.generateTokenPair(payload);
             const refreshTokenPayload = this.jwtService.decode(refresh_token) as {
                 exp: number;
@@ -111,7 +111,6 @@ export class AuthService {
                     id: user.id,
                     name: user.name,
                     email: user.email,
-                    role: user.role,
                     avatar: user.avatar,
                 },
                 access_token,
@@ -170,7 +169,6 @@ export class AuthService {
         const payload = {
             username: user.email,
             sub: user.id,
-            role: user.role,
         };
 
         const { access_token, refresh_token } = this.generateTokenPair(payload);
@@ -219,7 +217,13 @@ export class AuthService {
         const user = await this.prisma.user.findFirst({
             where: {
                 email: email,
-                role: 'ADMIN'
+                roles: {
+                    some: {
+                        role: {
+                            name: 'ADMIN'
+                        }
+                    }
+                }
             }
         })
         if (!user) {
@@ -239,7 +243,6 @@ export class AuthService {
         const payload = {
             username: user.email,
             sub: user.id,
-            role: user.role,
         }
         const { access_token, refresh_token } = this.generateTokenPair(payload);
         const refreshTokenPayload = this.jwtService.decode(refresh_token) as {
@@ -257,7 +260,6 @@ export class AuthService {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.role,
                 avatar: user.avatar,
             },
             access_token,

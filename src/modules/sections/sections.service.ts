@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CreateSectionDto } from './dto/create-section.dto';
 import { UpdateSectionDto } from './dto/update-section.dto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -61,7 +61,7 @@ export class SectionsService {
     return `This action returns a #${id} section`;
   }
 
-  async update(id: number, updateSectionDto: UpdateSectionDto) {
+  async update(id: number, instructorId: string, updateSectionDto: UpdateSectionDto) {
     try {
       const course = await this.prisma.course.findUnique({
         where: {
@@ -75,10 +75,16 @@ export class SectionsService {
         where: {
           id: id,
           courseId: updateSectionDto.courseId
+        },
+        include: {
+          course: true
         }
       })
       if (!section) {
         throw new NotFoundException('Không tìm thấy section');
+      }
+      if (section.course.instructorId !== instructorId) {
+        throw new UnauthorizedException('Bạn không có quyền sửa section này');
       }
       return this.prisma.section.update({
         where: {
@@ -87,22 +93,28 @@ export class SectionsService {
         data: updateSectionDto
       })
     } catch (error: any) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof UnauthorizedException) {
         throw error;
       }
       throw new InternalServerErrorException(error.message);
     }
   }
 
-  async remove(id: number) {
+  async remove(id: number, instructorId: string) {
     try {
       const section = await this.prisma.section.findUnique({
         where: {
           id: id
+        },
+        include: {
+          course: true
         }
       })
       if (!section) {
         throw new NotFoundException('Không tìm thấy section');
+      }
+      if (section.course.instructorId !== instructorId) {
+        throw new UnauthorizedException('Bạn không có quyền xoá section này');
       }
       return this.prisma.section.update({
         where: {
@@ -113,7 +125,7 @@ export class SectionsService {
         }
       })
     } catch (error: any) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof UnauthorizedException) {
         throw error;
       }
       throw new InternalServerErrorException(error.message);

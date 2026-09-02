@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -55,15 +55,30 @@ export class LessonsService {
     return `This action returns a #${id} lesson`;
   }
 
-  async update(id: number, updateLessonDto: UpdateLessonDto) {
+  async update(id: number, instructorId: string, updateLessonDto: UpdateLessonDto) {
     try {
       const lesson = await this.prisma.lesson.findUnique({
         where: {
           id: id
+        },
+        include: {
+          section: {
+            select: {
+              courseId: true,
+              course: {
+                select: {
+                  instructorId: true
+                }
+              }
+            }
+          }
         }
       })
       if (!lesson) {
         throw new BadRequestException("Không tìm thấy bài giảng")
+      }
+      if (lesson.section.course.instructorId !== instructorId) {
+        throw new ForbiddenException("Bạn không có quyền cập nhật bài giảng này")
       }
       let videoId: string = "";
       let duration: number = 0;
@@ -90,22 +105,37 @@ export class LessonsService {
       })
       return updatedLesson;
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (error instanceof BadRequestException || error instanceof ForbiddenException) {
         throw error
       }
       throw new BadRequestException("Lỗi khi cập nhật bài giảng")
     }
   }
 
-  async remove(id: number) {
+  async remove(id: number, instructorId: string) {
     try {
       const lesson = await this.prisma.lesson.findUnique({
         where: {
           id: id
+        },
+        include: {
+          section: {
+            select: {
+              courseId: true,
+              course: {
+                select: {
+                  instructorId: true
+                }
+              }
+            }
+          }
         }
       })
       if (!lesson) {
         throw new BadRequestException("Không tìm thấy bài giảng")
+      }
+      if (lesson.section.course.instructorId !== instructorId) {
+        throw new ForbiddenException("Bạn không có quyền xóa bài giảng này")
       }
       await this.prisma.lesson.update({
         where: {
@@ -118,7 +148,7 @@ export class LessonsService {
       return lesson;
     }
     catch (error) {
-      if (error instanceof BadRequestException) {
+      if (error instanceof BadRequestException || error instanceof ForbiddenException) {
         throw error
       }
       throw new BadRequestException("Lỗi khi xóa bài giảng")

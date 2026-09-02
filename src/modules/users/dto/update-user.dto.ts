@@ -1,5 +1,6 @@
-import { Role } from "@prisma/client";
-import { ArrayNotEmpty, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, MaxLength, MinLength, ValidateIf } from "class-validator";
+import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsNotEmpty, IsOptional, IsPhoneNumber, IsString } from "class-validator";
+
+export type RoleName = 'ADMIN' | 'INSTRUCTOR' | 'USER';
 
 export class UpdateUserDto {
     @IsNotEmpty({ message: 'ID không được để trống' })
@@ -20,8 +21,8 @@ export class UpdateUserDto {
     address?: string;
 
     @IsOptional()
-    @IsEnum(Role, { message: 'Vai trò không hợp lệ' })
-    role?: Role;
+    @IsIn(['ADMIN', 'INSTRUCTOR', 'USER'], { message: 'Vai trò không hợp lệ' })
+    role?: RoleName;
 
     @IsOptional()
     @IsBoolean({ message: 'Trạng thái không hợp lệ' })

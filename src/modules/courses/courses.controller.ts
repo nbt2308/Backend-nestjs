@@ -5,6 +5,12 @@ import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateCourseDto } from '
 import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 import { QueryCourseDto } from './dto/query-course.dto';
 import { Public } from '@/decorator/public.decorator';
+import { RequirePermissions } from '@/decorator/permissions.decorator';
+import { PERMISSIONS } from '@/authorization/constants/permission';
+import { CurrentUser } from '@/decorator/current-user.decorator';
+import { User } from '@prisma/client';
+import type { AuthUser } from '@/auth/interfaces/auth-user.interface';
+
 
 
 @Controller('courses')
@@ -32,6 +38,9 @@ export class CoursesController {
         );
     }
     @Post()
+    @RequirePermissions(
+        PERMISSIONS.COURSE_CREATE,
+    )
     @ResponseMessage('Tạo khóa học thành công')
     async create(@Req() req: Request, @Body() createCourseDto: CreateCourseDto) {
         const result = await this.coursesService.create(createCourseDto);
@@ -39,6 +48,9 @@ export class CoursesController {
     }
 
     @Get()
+    @RequirePermissions(
+        PERMISSIONS.COURSE_READ,
+    )
     async findAll(
         @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
         @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
@@ -50,48 +62,69 @@ export class CoursesController {
     }
 
     @Patch(':id')
+    @RequirePermissions(
+        PERMISSIONS.COURSE_UPDATE,
+    )
     @ResponseMessage('Cập nhật khoá học thành công')
-    async update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto) {
-        const result = await this.coursesService.update(id, updateCourseDto);
+    async update(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() updateCourseDto: UpdateCourseDto) {
+        const result = await this.coursesService.update(id, user.id, updateCourseDto);
         return result;
     }
 
     @Post('change-status')
+    @RequirePermissions(
+        PERMISSIONS.COURSE_UPDATE,
+    )
     @ResponseMessage('Cập nhật trạng thái khoá học thành công')
     @HttpCode(HttpStatus.OK)
-    async updateStatus(@Body() changeStatusDto: ChangeStatusDto) {
-        return await this.coursesService.changeStatus(changeStatusDto);
+    async updateStatus(@CurrentUser() user: AuthUser, @Body() changeStatusDto: ChangeStatusDto) {
+        return await this.coursesService.changeStatus(user.id, changeStatusDto);
     }
 
     @Delete(':id')
+    @RequirePermissions(
+        PERMISSIONS.COURSE_DELETE,
+    )
     @ResponseMessage('Xóa khóa học thành công')
     async remove(@Param('id') id: string) {
         return await this.coursesService.remove(id);
     }
 
     @Delete('soft/:id')
+    @RequirePermissions(
+        PERMISSIONS.COURSE_DELETE,
+    )
     @ResponseMessage('Xóa khóa học thành công')
-    async softDelete(@Param('id') id: string) {
-        return await this.coursesService.softDelete(id);
+    async softDelete(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+        return await this.coursesService.softDelete(user.id, id);
     }
 
     @Post('bulk-delete')
+    @RequirePermissions(
+        PERMISSIONS.COURSE_DELETE,
+    )
     @ResponseMessage('Xóa khoá học thành công')
     @HttpCode(HttpStatus.OK)
-    async bulkDelete(@Body() bulkDeleteDto: BulkDeleteDto) {
-        return await this.coursesService.bulkDelete(bulkDeleteDto);
+    async bulkDelete(@CurrentUser() user: AuthUser, @Body() bulkDeleteDto: BulkDeleteDto) {
+        return await this.coursesService.bulkDelete(user.id,bulkDeleteDto);
     }
 
     @Post('bulk-update-status')
+    @RequirePermissions(
+        PERMISSIONS.COURSE_UPDATE,
+    )
     @ResponseMessage('Cập nhật trạng thái khoá học thành công')
     @HttpCode(HttpStatus.OK)
-    async bulkStatus(@Body() bulkStatusDto: BulkStatusDto) {
-        return await this.coursesService.bulkStatus(bulkStatusDto);
+    async bulkStatus(@CurrentUser() user: AuthUser, @Body() bulkStatusDto: BulkStatusDto) {
+        return await this.coursesService.bulkStatus(user.id,bulkStatusDto);
     }
 
 
 
     @Get(':id')
+    @RequirePermissions(
+        PERMISSIONS.COURSE_READ,
+    )
     findOne(@Param('id') id: string) {
         return this.coursesService.findOne(+id);
     }

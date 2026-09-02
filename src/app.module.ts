@@ -24,39 +24,46 @@ import { YoutubeModule } from './youtube/youtube.module';
 import { HomeModule } from './modules/home/home.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthCronService } from './auth/auth-cron.service';
+import { AuthorizationModule } from './authorization/authorization.module';
+import { PermissionGuard } from './authorization/guards/permission.guard';
 @Module({
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
-    ScheduleModule.forRoot(),
-    UsersModule,
-    CoursesModule,
-    SectionsModule,
-    LessonsModule,
-    WishlistsModule,
-    PostsModule,
-    CourseCommentsModule,
-    PostCommentsModule,
-    OrdersModule,
-    OrderItemsModule,
-    PrismaModule,
-    AuthModule,
-    MailModule,
-    MediaModule,
-    TagsModule,
-    YoutubeModule,
-    HomeModule,
-  ],
-  controllers: [AppController],
-  providers: [AppService,
-    AuthCronService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TransformInterceptor,
-    },
-  ],
+    imports: [
+        ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
+        ScheduleModule.forRoot(),
+        UsersModule,
+        CoursesModule,
+        SectionsModule,
+        LessonsModule,
+        WishlistsModule,
+        PostsModule,
+        CourseCommentsModule,
+        PostCommentsModule,
+        OrdersModule,
+        OrderItemsModule,
+        PrismaModule,
+        AuthModule,
+        MailModule,
+        MediaModule,
+        TagsModule,
+        YoutubeModule,
+        HomeModule,
+        AuthorizationModule,
+    ],
+    controllers: [AppController],
+    providers: [AppService,
+        AuthCronService,
+        {
+            provide: APP_GUARD,
+            useClass: JwtAuthGuard,
+        },
+        {
+            provide: APP_GUARD,
+            useClass: PermissionGuard,
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: TransformInterceptor,
+        },
+    ],
 })
 export class AppModule { }

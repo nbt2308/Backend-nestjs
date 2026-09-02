@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateCourseDto } from './dto/update-course.dto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -6,10 +6,11 @@ import { generateSlug } from '@/helpers/slug.util';
 import { uuidv7 } from 'uuidv7';
 import { CourseType } from '@prisma/client';
 import { normalizeNumberArray, normalizeStringArray } from '@/helpers/normalizeArray.utils';
+import { AuthorizationService } from '@/authorization/authorization.service';
 
 @Injectable()
 export class CoursesService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(private readonly prisma: PrismaService, private readonly authorizationService: AuthorizationService) { }
 
     async create(createCourseDto: CreateCourseDto) {
         try {
@@ -125,7 +126,7 @@ export class CoursesService {
         return `This action returns a #${id} course`;
     }
 
-    async update(id: string, updateCourseDto: UpdateCourseDto) {
+    async update(id: string, userId: string, updateCourseDto: UpdateCourseDto) {
         try {
 
             const course = await this.prisma.course.findUnique({
@@ -168,6 +169,15 @@ export class CoursesService {
                 }
             }
             const { tags: tagIds, ...restUpdateDto } = updateCourseDto;
+
+            //Ownership check 
+            const isAdmin =
+                await this.authorizationService.hasRole(userId, 'ADMIN');
+
+            if (!isAdmin && course.instructorId !== userId) {
+
+                throw new ForbiddenException('Ban không có quyền cập nhật khóa học này');
+            }
             const updateCourse = await this.prisma.course.update({
                 where: {
                     id: id
@@ -191,6 +201,9 @@ export class CoursesService {
                 throw error;
             }
             if (error instanceof BadRequestException) {
+                throw error;
+            }
+            if (error instanceof ForbiddenException) {
                 throw error;
             }
             throw error;
@@ -224,7 +237,7 @@ export class CoursesService {
             throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
         }
     }
-    async softDelete(id: string) {
+    async softDelete(userId: string,id: string) {
         try {
             const course = await this.prisma.course.findUnique({
                 where: {
@@ -233,6 +246,13 @@ export class CoursesService {
             })
             if (!course) {
                 throw new NotFoundException('Không tìm thấy khóa học')
+            }
+            const isAdmin =
+                await this.authorizationService.hasRole(userId, 'ADMIN');
+
+            if (!isAdmin && course.instructorId !== userId) {
+
+                throw new ForbiddenException('Ban không có quyền xóa khóa học này');
             }
             const softDeleteCourse = await this.prisma.course.update({
                 where: {
@@ -251,11 +271,14 @@ export class CoursesService {
             if (error instanceof NotFoundException) {
                 throw error;
             }
+            if (error instanceof ForbiddenException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
         }
     }
 
-    async changeStatus(changeStatusDto: ChangeStatusDto) {
+    async changeStatus(userId: string,changeStatusDto: ChangeStatusDto) {
         try {
             const { id, status } = changeStatusDto;
             const course = await this.prisma.course.findUnique({
@@ -265,6 +288,13 @@ export class CoursesService {
             })
             if (!course) {
                 throw new NotFoundException('Không tìm thấy khoá học')
+            }
+            const isAdmin =
+                await this.authorizationService.hasRole(userId, 'ADMIN');
+
+            if (!isAdmin && course.instructorId !== userId) {
+
+                throw new ForbiddenException('Ban không có quyền thay đổi trạng thái khóa học này');
             }
             const changeStatusCourse = await this.prisma.course.update({
                 where: {
@@ -283,11 +313,14 @@ export class CoursesService {
             if (error instanceof NotFoundException) {
                 throw error;
             }
+            if (error instanceof ForbiddenException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Có lỗi xảy ra khi thay đổi trạng thái');
         }
     }
 
-    async bulkStatus(bulkStatusDto: BulkStatusDto) {
+    async bulkStatus(userId: string,bulkStatusDto: BulkStatusDto) {
         try {
             const { ids, status } = bulkStatusDto;
             const course = await this.prisma.course.findMany({
@@ -299,6 +332,20 @@ export class CoursesService {
             })
             if (course.length === 0) {
                 throw new BadRequestException('Không tìm thấy khóa học nào để cập nhật');
+            }
+            const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
+            if (!isAdmin) {
+                const userCourses = await this.prisma.course.findMany({
+                    where: {
+                        id: {
+                            in: ids
+                        },
+                        instructorId: userId
+                    }
+                })
+                if (userCourses.length !== ids.length) {
+                    throw new ForbiddenException('Bạn không có quyền cập nhật trạng thái khóa học này');
+                }
             }
             const result = await this.prisma.course.updateMany({
                 where: {
@@ -314,11 +361,17 @@ export class CoursesService {
                 count: result.count
             }
         } catch (error) {
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            if (error instanceof ForbiddenException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật trạng thái khoá học');
         }
     }
 
-    async bulkDelete(bulkDeleteDto: BulkDeleteDto) {
+    async bulkDelete(userId: string,bulkDeleteDto: BulkDeleteDto) {
         try {
             const { ids } = bulkDeleteDto;
             const course = await this.prisma.course.findMany({
@@ -330,6 +383,20 @@ export class CoursesService {
             })
             if (course.length === 0) {
                 throw new BadRequestException('Không tìm thấy khóa học nào để xóa');
+            }
+            const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
+            if (!isAdmin) {
+                const userCourses = await this.prisma.course.findMany({
+                    where: {
+                        id: {
+                            in: ids
+                        },
+                        instructorId: userId
+                    }
+                })
+                if (userCourses.length !== ids.length) {
+                    throw new ForbiddenException('Bạn không có quyền xóa khóa học này');
+                }
             }
             const result = await this.prisma.course.updateMany({
                 where: {
@@ -346,6 +413,9 @@ export class CoursesService {
             }
         } catch (error) {
             if (error instanceof BadRequestException) {
+                throw error;
+            }
+            if (error instanceof ForbiddenException) {
                 throw error;
             }
             throw new InternalServerErrorException('Có lỗi xảy ra khi xóa khoá học');

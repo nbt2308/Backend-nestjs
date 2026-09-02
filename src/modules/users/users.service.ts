@@ -12,8 +12,7 @@ import { OAuthDto } from '@/auth/dto/oauth.dto';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import { uuidv7 } from "uuidv7";
-import { Role } from '@prisma/client';
-import { error } from 'node:console';
+import { RoleName } from './dto/create-user.dto';
 dayjs.extend(utc);
 @Injectable()
 export class UsersService {
@@ -36,13 +35,22 @@ export class UsersService {
     }
     async createUser(createUserDto: CreateUserDto) {
         try {
-            const { name, email, phone, password } = createUserDto;
+            const { name, email, phone, password, role } = createUserDto;
             const checkEmailOrPhoneExist = await this.checkEmailOrPhoneExist(email, phone)
             if (!checkEmailOrPhoneExist) {
                 throw new BadRequestException('Email hoặc số điện thoại đã tồn tại')
             }
+
+            const roleRecord = await this.prisma.role.findUnique({
+                where: { name: role },
+            });
+
+            if (!roleRecord) {
+                throw new BadRequestException('Vai trò không hợp lệ');
+            }
+
             const hashPassword = await hashPasswordHelper(password);
-            const id = uuidv7()
+            const id = uuidv7();
             const user = await this.prisma.user.create({
                 data: {
                     id,
@@ -50,10 +58,20 @@ export class UsersService {
                     email,
                     phone,
                     password: hashPassword,
+                    status: true,
+                    isActive: true,
+                    provider: ['local'],
+                    roles: {
+                        create: {
+                            roleId: roleRecord.id,
+                        },
+                    },
                 },
-            })
+            });
+
             return {
-                id: user.id
+                id: user.id,
+                role: roleRecord.name,
             };
         } catch (error) {
             if (error instanceof BadRequestException) {
@@ -103,7 +121,6 @@ export class UsersService {
                     id: true,
                     name: true,
                     email: true,
-                    role: true,
                     avatar: true,
                     phone: true,
                     address: true,
@@ -111,15 +128,30 @@ export class UsersService {
                     status: true,
                     provider: true,
                     createdAt: true,
-                    updatedAt: true
+                    updatedAt: true,
+                    roles: {
+                        select: {
+                            role: {
+                                select: {
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
                 },
             }),
             this.prisma.user.count({
                 where: whereCondition
             })
         ])
+
+        const normalizedUsers = users.map((user) => ({
+            ...user,
+            role: user.roles[0]?.role.name ?? null,
+        }));
+
         const totalPages = Math.ceil(totalItems / take);
-        return { users, totalItems, totalPages };
+        return { users: normalizedUsers, totalItems, totalPages };
     }
 
     findOne(id: number) {
@@ -130,9 +162,15 @@ export class UsersService {
         try {
             return this.prisma.user.findMany({
                 where: {
-                    role: Role.INSTRUCTOR,
+                    roles: {
+                        some: {
+                            role: {
+                                name: 'INSTRUCTOR',
+                            },
+                        },
+                    },
                     status: true,
-                    deletedAt: null
+                    deletedAt: null,
                 },
                 select: {
                     id: true,
@@ -181,16 +219,25 @@ export class UsersService {
     async bulkDelete(bulkDeleteDto: BulkDeleteDto) {
         try {
             const { ids } = bulkDeleteDto;
-            const user = await this.prisma.user.findMany({
+            const users = await this.prisma.user.findMany({
                 where: {
                     id: {
                         in: ids
                     }
-                }
-            })
-            if (user.some((u: any) => u.role === Role.ADMIN)) {
+                },
+                include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
+                },
+            });
+
+            if (users.some((u) => u.roles.some((roleItem) => roleItem.role.name === 'ADMIN'))) {
                 throw new BadRequestException("Không thể xóa Admin");
             }
+
             const result = await this.prisma.user.updateMany({
                 where: {
                     id: {
@@ -222,6 +269,11 @@ export class UsersService {
                     id: id
                 },
                 include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
                     _count: {
                         select: {
                             courses: true
@@ -232,12 +284,14 @@ export class UsersService {
             if (!user) {
                 throw new NotFoundException('Không tìm thấy người dùng')
             }
-            const isChangingFromInstructor = user.role === Role.INSTRUCTOR && updateUserDto.role && updateUserDto.role !== Role.INSTRUCTOR;
+
+            const hasInstructorRole = user.roles.some((userRole) => userRole.role.name === 'INSTRUCTOR');
+            const isChangingFromInstructor = hasInstructorRole && role && role !== 'INSTRUCTOR';
             const hasActiveCourses = user._count.courses > 0;
             if (isChangingFromInstructor && hasActiveCourses) {
                 throw new BadRequestException("Không thể thay đổi vai trò của giảng viên này vì hiện đang dạy trong 1 khoá học nào đó");
             }
-            //validate exist phone
+
             if (phone) {
                 const checkPhoneExist = await this.prisma.user.findFirst({
                     where: {
@@ -250,6 +304,27 @@ export class UsersService {
                 }
             }
 
+            if (role) {
+                const targetRole = await this.prisma.role.findUnique({
+                    where: { name: role },
+                });
+
+                if (!targetRole) {
+                    throw new BadRequestException('Vai trò không hợp lệ');
+                }
+
+                await this.prisma.userRole.deleteMany({
+                    where: { userId: id },
+                });
+
+                await this.prisma.userRole.create({
+                    data: {
+                        userId: id,
+                        roleId: targetRole.id,
+                    },
+                });
+            }
+
             const updateUser = await this.prisma.user.update({
                 where: {
                     id: id
@@ -258,9 +333,15 @@ export class UsersService {
                     name: name,
                     phone: phone,
                     address: address,
-                    role: role,
-                    status: status
-                }
+                    status: status,
+                },
+                include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
+                },
             })
             return {
                 id: updateUser.id,
@@ -268,8 +349,8 @@ export class UsersService {
                 email: updateUser.email,
                 phone: updateUser.phone,
                 address: updateUser.address,
-                role: updateUser.role,
-                status: updateUser.status
+                role: updateUser.roles[0]?.role.name ?? null,
+                status: updateUser.status,
             }
         }
         catch (error) {
@@ -347,12 +428,19 @@ export class UsersService {
             const user = await this.prisma.user.findUnique({
                 where: {
                     id: id
-                }
+                },
+                include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
+                },
             })
             if (!user) {
                 throw new NotFoundException('Không tìm thấy người dùng')
             }
-            if (user.role === Role.ADMIN) {
+            if (user.roles.some((userRole) => userRole.role.name === 'ADMIN')) {
                 throw new BadRequestException('Không thể xoá Admin')
             }
             return await this.prisma.user.update({
@@ -392,7 +480,16 @@ export class UsersService {
                 codeExpired: codeExpired,
                 verifyToken: verifyToken,
                 verifyTokenExpired: verifyTokenExpired,
-                provider: ["local"]
+                provider: ["local"],
+                roles: {
+                    create: {
+                        role: {
+                            connect: {
+                                name: 'USER',
+                            },
+                        },
+                    },
+                },
             }
         })
         //send email to verify account
