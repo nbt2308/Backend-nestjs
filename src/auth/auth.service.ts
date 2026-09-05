@@ -276,7 +276,7 @@ export class AuthService {
                 secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
             });
             const tokenHash = hashRefreshToken(refreshToken);
-            const storedToken = await this.prisma.refreshToken.findFirst({
+            const storedToken = await this.prisma.refreshToken.findUnique({
                 where: {
                     tokenHash: tokenHash,
                 }
@@ -288,7 +288,10 @@ export class AuthService {
                 // PHÁT HIỆN TẤN CÔNG LẶP LẠI (ABUSE DETECTION)
                 // Thu hồi toàn bộ token của User này ngay lập tức!
                 await this.prisma.refreshToken.updateMany({
-                    where: { userId: storedToken.userId },
+                    where: {
+                        userId: storedToken.userId,
+                        revokedAt: null
+                    },
                     data: { revokedAt: new Date() }
                 });
                 throw new UnauthorizedException('Cảnh báo bảo mật: Refresh token đã bị sử dụng lại. Toàn bộ phiên đăng nhập đã bị hủy.');
@@ -339,7 +342,9 @@ export class AuthService {
             if (error instanceof UnauthorizedException) {
                 throw error;
             }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi refresh token. Vui lòng thử lại sau');
+            throw new UnauthorizedException(
+                'Refresh token không hợp lệ hoặc đã hết hạn',
+            );
 
         }
     }
@@ -412,6 +417,32 @@ export class AuthService {
             throw new InternalServerErrorException('Có lỗi xảy ra khi get user. Vui lòng thử lại sau');
         }
 
+    }
+
+    /**
+     * Thu hồi refresh token khi user logout
+     */
+    async logout(refreshToken?: string) {
+        if (!refreshToken) {
+            return { message: 'Đăng xuất thành công' };
+        }
+
+        try {
+            const tokenHash = hashRefreshToken(refreshToken);
+            await this.prisma.refreshToken.updateMany({
+                where: {
+                    tokenHash: tokenHash,
+                    revokedAt: null,
+                },
+                data: {
+                    revokedAt: new Date(),
+                },
+            });
+        } catch (error) {
+            console.error('Lỗi khi thu hồi refresh token:', error);
+        }
+
+        return { message: 'Đăng xuất thành công' };
     }
 }
 

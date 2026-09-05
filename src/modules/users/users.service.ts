@@ -133,6 +133,7 @@ export class UsersService {
                         select: {
                             role: {
                                 select: {
+                                    id: true,
                                     name: true,
                                 },
                             },
@@ -147,7 +148,7 @@ export class UsersService {
 
         const normalizedUsers = users.map((user) => ({
             ...user,
-            role: user.roles[0]?.role.name ?? null,
+            roles: user.roles?.map((role) => ({ id: role.role.id, name: role.role.name })) ?? [],
         }));
 
         const totalPages = Math.ceil(totalItems / take);

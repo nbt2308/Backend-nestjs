@@ -1,421 +1,353 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-    provider = "prisma-client-js"
-    // output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 generator client_frontend {
-    provider = "prisma-client-js"
-    output   = "../../Front-end/node_modules/.prisma/client"
+  provider = "prisma-client-js"
+  output   = "../../Front-end/node_modules/.prisma/client"
 }
 
 generator zod {
-    provider = "prisma-zod-generator"
-    output   = "../../Front-end/src/types/generated-zod"
-    config   = "./zod-generator.config.json"
+  provider = "prisma-zod-generator"
+  output   = "../../Front-end/src/types/generated-zod"
+  config   = "./zod-generator.config.json"
 }
 
 datasource db {
-    provider = "postgresql"
+  provider = "postgresql"
 }
 
-// 1. Định nghĩa các Enum để quản lý giá trị cố định
-
-enum OrderStatus {
-    PENDING
-    COMPLETED
-    CANCELLED
-}
-
-enum CourseType {
-    FREE
-    PAID
-}
-
-enum Level {
-    BEGINNER
-    INTERMEDIATE
-    ADVANCED
-}
-
-enum EnrollmentStatus {
-    ENROLLED // Đã ghi danh
-    IN_PROGRESS // Đang học
-    COMPLETED // Đã hoàn thành
-}
-
-// enum AuditAction {
-//   CREATE
-//   UPDATE
-//   DELETE
-//   LOGIN
-//   LOGOUT
-//   PASSWORD_RESET
-//   PASSWORD_CHANGE
-//   EMAIL_VERIFICATION
-//   ROLE_CHANGE
-//   ACCOUNT_DEACTIVATION
-//   ACCOUNT_REACTIVATION
-// }
-
-// 2. Bảng Người dùng
 model User {
-    id       String  @id @default(uuid())
-    email    String  @unique
-    password String?
-    name     String
-    avatar   String?
-    phone    String? @unique
-    address  String?
+  id                 String           @id @default(uuid())
+  email              String           @unique
+  password           String?
+  name               String
+  avatar             String?
+  phone              String?          @unique
+  address            String?
+  googleId           String?          @unique
+  githubId           String?          @unique
+  isActive           Boolean          @default(false)
+  status             Boolean          @default(true)
+  codeId             String?
+  codeExpired        DateTime?
+  verifyToken        String?
+  verifyTokenExpired DateTime?
+  provider           String[]         @default([])
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  deletedAt          DateTime?
+  courses            Course[]
+  courseReviews      CourseReview[]
+  enrollments        Enrollment[]
+  lessonProgress     LessonProgress[]
+  orders             Order[]
+  password_resets    Password_Resets?
+  posts              Post[]
+  postComments       PostComment[]
+  refreshTokens      RefreshToken[]
+  roles              UserRole[]
+  wishlists          Wishlist[]
 
-    googleId           String?   @unique
-    githubId           String?   @unique
-    isActive           Boolean   @default(false)
-    status             Boolean   @default(true)
-    codeId             String?
-    codeExpired        DateTime?
-    verifyToken        String?
-    verifyTokenExpired DateTime?
-    provider           String[]  @default([])
-
-    // Quan hệ
-    roles           UserRole[]
-    posts           Post[]
-    courses         Course[] // Nếu là giảng viên
-    wishlists       Wishlist[]
-    postComments    PostComment[]
-    courseReviews   CourseReview[]
-    orders          Order[]
-    enrollments     Enrollment[]
-    password_resets Password_Resets[]
-    lessonProgress  LessonProgress[]
-    refreshTokens   RefreshToken[]
-    createdAt       DateTime          @default(now())
-    updatedAt       DateTime          @updatedAt
-    deletedAt       DateTime?
-
-    @@index([status])
-    @@index([isActive])
-    @@index([email])
-    @@index([phone])
-    @@index([name])
+  @@index([status])
+  @@index([isActive])
+  @@index([email])
+  @@index([phone])
+  @@index([name])
 }
 
 model Role {
-    id   Int    @id @default(autoincrement())
-    name String @unique
-
-    users       UserRole[]
-    permissions RolePermission[]
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  permissions RolePermission[]
+  users       UserRole[]
 }
 
 model Permission {
-    id          Int     @id @default(autoincrement())
-    name        String  @unique
-    description String?
-
-    roles RolePermission[]
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  description String?
+  roles       RolePermission[]
 }
 
 model UserRole {
-    userId String
-    roleId Int
+  userId String
+  roleId Int
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    user User @relation(fields: [userId], references: [id],onDelete: Cascade)
-
-    role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-    @@id([userId, roleId])
+  @@id([userId, roleId])
 }
 
 model RolePermission {
-    roleId       Int
-    permissionId Int
+  roleId       Int
+  permissionId Int
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-    role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-    permission Permission @relation( fields: [permissionId], references: [id], onDelete: Cascade)
-
-    @@id([roleId, permissionId])
+  @@id([roleId, permissionId])
 }
 
 model RefreshToken {
-    id        String @id @default(uuid())
-    userId    String
-    tokenHash String @unique
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    expiresAt DateTime
-    revokedAt DateTime?
-
-    createdAt DateTime @default(now())
-
-    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@index([userId])
+  @@index([userId])
 }
 
 model Password_Resets {
-    id          Int      @id @default(autoincrement())
-    email       String   @unique
-    codeId      String
-    codeExpired DateTime
-    is_verified Boolean  @default(false)
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
-
-    // Quan hệ (liên kết qua trường email của User)
-    user User @relation(fields: [email], references: [email])
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  codeId      String
+  codeExpired DateTime
+  is_verified Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [email], references: [email])
 }
 
 model AuditLog {
-    id        String  @id @default(uuid())
-    userId    String?
-    userEmail String?
-    userRole  String?
+  id           String   @id @default(uuid())
+  userId       String?
+  userEmail    String?
+  userRole     String?
+  action       String
+  entityName   String
+  entityId     String?
+  oldValues    Json?
+  newValues    Json?
+  ipAddress    String?
+  userAgent    String?
+  status       String   @default("SUCCESS")
+  errorMessage String?
+  createdAt    DateTime @default(now())
 
-    action     String
-    entityName String
-    entityId   String?
-
-    oldValues Json?
-    newValues Json?
-
-    ipAddress    String?
-    userAgent    String?
-    status       String  @default("SUCCESS")
-    errorMessage String?
-
-    createdAt DateTime @default(now())
-
-    @@index([userId])
-    @@index([action])
-    @@index([entityName, entityId])
-    @@index([createdAt])
-    @@map("audit_logs")
+  @@index([userId])
+  @@index([action])
+  @@index([entityName, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
-// 3. Hệ thống Khóa học (LMS)
 model Tag {
-    id          Int      @id @default(autoincrement())
-    name        String   @unique
-    slug        String   @unique
-    description String?  @db.Text
-    status      Boolean  @default(true)
-    courses     Course[]
-    posts       Post[]
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  status      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  courses     Course[] @relation("CourseToTag")
+  posts       Post[]   @relation("PostToTag")
 }
 
 model Course {
-    id                 String     @id @default(uuid())
-    title              String
-    slug               String     @unique
-    description        String     @db.Text
-    thumbnail          String?
-    thumbnail_publicID String?
-    courseType         CourseType @default(FREE)
-    level              Level      @default(BEGINNER)
-    status             Boolean    @default(true)
-    price              Decimal    @default(0) @db.Decimal(12, 2)
-    discount           Decimal    @default(0) @db.Decimal(12, 2)
+  id                 String         @id @default(uuid())
+  title              String
+  slug               String         @unique
+  description        String
+  thumbnail          String?
+  thumbnail_publicID String?
+  courseType         CourseType     @default(FREE)
+  level              Level          @default(BEGINNER)
+  status             Boolean        @default(true)
+  price              Decimal        @default(0) @db.Decimal(12, 2)
+  discount           Decimal        @default(0) @db.Decimal(12, 2)
+  instructorId       String
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  deletedAt          DateTime?
+  averageRating      Float          @default(0)
+  reviewCount        Int            @default(0)
+  studentCount       Int            @default(0)
+  instructor         User           @relation(fields: [instructorId], references: [id])
+  reviews            CourseReview[]
+  enrollments        Enrollment[]
+  orderItems         OrderItem[]
+  sections           Section[]
+  wishlists          Wishlist[]
+  tags               Tag[]          @relation("CourseToTag")
 
-    studentCount  Int    @default(0)
-    reviewCount   Int    @default(0)
-    averageRating Float  @default(0)
-    instructorId  String
-    instructor    User   @relation(fields: [instructorId], references: [id])
-
-    tags Tag[]
-
-    sections Section[]
-
-    wishlists   Wishlist[]
-    reviews     CourseReview[]
-    orderItems  OrderItem[]
-    enrollments Enrollment[]
-    createdAt   DateTime       @default(now())
-    updatedAt   DateTime       @updatedAt
-    deletedAt   DateTime?
-
-    @@index([instructorId])
-    @@index([courseType])
-    @@index([level])
-    @@index([status])
-    @@index([price])
-    @@index([discount])
-    @@index([createdAt])
-    @@index([updatedAt])
+  @@index([instructorId])
+  @@index([courseType])
+  @@index([level])
+  @@index([status])
+  @@index([price])
+  @@index([discount])
+  @@index([createdAt])
+  @@index([updatedAt])
 }
 
 model Enrollment {
-    id String @id @default(uuid())
+  id        String           @id @default(uuid())
+  userId    String
+  courseId  String
+  status    EnrollmentStatus @default(ENROLLED)
+  progress  Float            @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  course    Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    userId String
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    courseId String
-    course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-    status   EnrollmentStatus @default(ENROLLED)
-    progress Float            @default(0) // Lưu tiến độ học từ 0% -> 100%
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@unique([userId, courseId]) // Đảm bảo 1 user không thể ghi danh trùng 1 khóa học nhiều lần
+  @@unique([userId, courseId])
 }
 
 model Section {
-    id        Int       @id @default(autoincrement())
-    title     String
-    order     Int
-    courseId  String
-    course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-    lessons   Lesson[]
-    createdAt DateTime  @default(now())
-    updatedAt DateTime  @updatedAt
-    deletedAt DateTime?
+  id        Int       @id @default(autoincrement())
+  title     String
+  order     Int
+  courseId  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  lessons   Lesson[]
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-    @@index([courseId])
-    @@index([order])
-    @@index([createdAt])
-    @@index([updatedAt])
+  @@index([courseId])
+  @@index([order])
+  @@index([createdAt])
+  @@index([updatedAt])
 }
 
 model Lesson {
-    id        Int     @id @default(autoincrement())
-    title     String
-    videoUrl  String
-    videoId   String
-    duration  Int // Lưu theo giây
-    content   String? @db.Text
-    order     Int
-    isPreview Boolean @default(false)
-
-    sectionId      Int
-    section        Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-    lessonProgress LessonProgress[]
-    createdAt      DateTime         @default(now())
-    updatedAt      DateTime         @updatedAt
-    deletedAt      DateTime?
+  id             Int              @id @default(autoincrement())
+  title          String
+  videoUrl       String
+  videoId        String
+  duration       Int
+  content        String?
+  order          Int
+  isPreview      Boolean          @default(false)
+  sectionId      Int
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+  section        Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lessonProgress LessonProgress[]
 }
 
 model LessonProgress {
-    id String @id @default(uuid())
+  id          String   @id @default(uuid())
+  userId      String
+  lessonId    Int
+  isCompleted Boolean  @default(true)
+  completedAt DateTime @default(now())
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    userId String
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    lessonId Int
-    lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-
-    isCompleted Boolean  @default(true)
-    completedAt DateTime @default(now())
-
-    @@unique([userId, lessonId]) // 1 Học viên chỉ có 1 bản ghi tiến độ cho 1 bài học
+  @@unique([userId, lessonId])
 }
 
-// 4. Wishlist
 model Wishlist {
-    id        Int      @id @default(autoincrement())
-    userId    String
-    user      User     @relation(fields: [userId], references: [id])
-    courseId  String
-    course    Course   @relation(fields: [courseId], references: [id])
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  userId    String
+  courseId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  course    Course   @relation(fields: [courseId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
-    @@unique([userId, courseId])
+  @@unique([userId, courseId])
 }
 
-// 5. Order & OrderDetails
 model Order {
-    id          Int         @id @default(autoincrement())
-    orderNumber String      @unique
-    userId      String
-    user        User        @relation(fields: [userId], references: [id])
-    totalAmount Decimal     @db.Decimal(12, 2)
-    status      OrderStatus @default(PENDING)
-
-    orderItems OrderItem[]
-    createdAt  DateTime    @default(now())
-    updatedAt  DateTime    @updatedAt
+  id          Int         @id @default(autoincrement())
+  orderNumber String      @unique
+  userId      String
+  totalAmount Decimal     @db.Decimal(12, 2)
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id])
+  orderItems  OrderItem[]
 }
 
 model OrderItem {
-    id       Int     @id @default(autoincrement())
-    orderId  Int
-    courseId String
-    price    Decimal @db.Decimal(12, 2)
-
-    order     Order    @relation(fields: [orderId], references: [id])
-    course    Course   @relation(fields: [courseId], references: [id])
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  courseId  String
+  price     Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  course    Course   @relation(fields: [courseId], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id])
 }
 
-// 6. Blog
 model Post {
-    id                 Int     @id @default(autoincrement())
-    title              String
-    slug               String  @unique
-    content            String  @db.Text
-    thumbnail          String?
-    thumbnail_publicID String?
-    likes              Int     @default(0)
-    dislikes           Int     @default(0)
-    views              Int     @default(0)
-    isPublished        Boolean @default(true)
-    authorId           String
-    author             User    @relation(fields: [authorId], references: [id])
-
-    comments  PostComment[]
-    tags      Tag[]
-    createdAt DateTime      @default(now())
-    updatedAt DateTime      @updatedAt
+  id                 Int           @id @default(autoincrement())
+  title              String
+  slug               String        @unique
+  content            String
+  likes              Int           @default(0)
+  dislikes           Int           @default(0)
+  views              Int           @default(0)
+  authorId           String
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  isPublished        Boolean       @default(true)
+  thumbnail          String?
+  thumbnail_publicID String?
+  author             User          @relation(fields: [authorId], references: [id])
+  comments           PostComment[]
+  tags               Tag[]         @relation("PostToTag")
 }
 
-// 7. Course Review
 model CourseReview {
-    id       Int    @id @default(autoincrement())
-    content  String @db.Text
-    rating   Int    @default(5)
-    likes    Int    @default(0)
-    dislikes Int    @default(0)
+  id        Int      @id @default(autoincrement())
+  content   String
+  rating    Int      @default(5)
+  likes     Int      @default(0)
+  dislikes  Int      @default(0)
+  userId    String
+  courseId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    userId   String
-    user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-    courseId String
-    course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@unique([userId, courseId])
+  @@unique([userId, courseId])
 }
 
 model PostComment {
-    id       Int    @id @default(autoincrement())
-    content  String @db.Text
-    likes    Int    @default(0)
-    dislikes Int    @default(0)
+  id        Int           @id @default(autoincrement())
+  content   String
+  likes     Int           @default(0)
+  dislikes  Int           @default(0)
+  userId    String
+  postId    Int
+  parentId  Int?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  parent    PostComment?  @relation("PostCommentToComment", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   PostComment[] @relation("PostCommentToComment")
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
-    userId String
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-    postId Int
-    post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
 
-    // Cấu trúc Nested
-    parentId Int?
-    parent   PostComment?  @relation("PostCommentToComment", fields: [parentId], references: [id], onDelete: Cascade)
-    replies  PostComment[] @relation("PostCommentToComment")
+enum CourseType {
+  FREE
+  PAID
+}
 
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+enum Level {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
 }

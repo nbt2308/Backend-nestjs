@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './passport/jwt-auth.guard';
 import { Public } from '@/decorator/public.decorator';
 import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 import { OAuthDto } from './dto/oauth.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { CurrentUser } from '@/decorator/current-user.decorator';
 import type { AuthUser } from './interfaces/auth-user.interface';
 
@@ -86,6 +87,13 @@ export class AuthController {
   @Post('refresh')
   async handleRefreshToken(@Body() body: { refreshToken: string }) {
     return await this.authService.refreshToken(body.refreshToken);
+  }
+
+  @Public()
+  @ResponseMessage('Đăng xuất thành công')
+  @Post('logout')
+  async handleLogout(@Body() logoutDto: LogoutDto) {
+    return await this.authService.logout(logoutDto.refreshToken);
   }
 
   @Get('me')
