@@ -14,6 +14,8 @@ import { createHash } from 'crypto';
 import { hashRefreshToken } from '@/helpers/hashToken.util';
 @Injectable()
 export class AuthService {
+    private refreshCache = new Map<string, { promise: Promise<{ access_token: string, refresh_token: string }>, expiresAt: number }>();
+
     constructor(
         private readonly usersService: UsersService,
         private jwtService: JwtService,
@@ -276,68 +278,92 @@ export class AuthService {
                 secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
             });
             const tokenHash = hashRefreshToken(refreshToken);
-            const storedToken = await this.prisma.refreshToken.findUnique({
-                where: {
-                    tokenHash: tokenHash,
-                }
-            })
-            if (!storedToken) {
-                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
-            }
-            if (storedToken.revokedAt) {
-                // PHÁT HIỆN TẤN CÔNG LẶP LẠI (ABUSE DETECTION)
-                // Thu hồi toàn bộ token của User này ngay lập tức!
-                await this.prisma.refreshToken.updateMany({
-                    where: {
-                        userId: storedToken.userId,
-                        revokedAt: null
-                    },
-                    data: { revokedAt: new Date() }
-                });
-                throw new UnauthorizedException('Cảnh báo bảo mật: Refresh token đã bị sử dụng lại. Toàn bộ phiên đăng nhập đã bị hủy.');
-            }
-            if (storedToken.expiresAt < new Date()) {
-                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
-            }
-            if (payload.sub !== storedToken.userId) {
-                throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
-            }
-            // Tạo cặp token mới
-            const newPayload = {
-                username: payload.username,
-                sub: payload.sub,
-                role: payload.role,
-            };
-            const { access_token, refresh_token: new_refresh_token } = this.generateTokenPair(newPayload);
-            const newRefreshTokenPayload = this.jwtService.decode(new_refresh_token) as {
-                exp: number;
-            };
-            await this.prisma.$transaction([
-                this.prisma.refreshToken.update({
-                    where: {
-                        id: storedToken.id,
-                    },
-                    data: {
-                        revokedAt: new Date(),
-                    },
-                }),
 
-                this.prisma.refreshToken.create({
-                    data: {
-                        userId: payload.sub,
-                        tokenHash: hashRefreshToken(
-                            new_refresh_token
-                        ),
-                        expiresAt: new Date(
-                            newRefreshTokenPayload.exp * 1000
-                        ),
-                    },
-                }),
-            ]);
-            return {
-                access_token,
-                refresh_token: new_refresh_token,
-            };
+            // Check memory cache for recently refreshed tokens to handle concurrent requests (Grace Period)
+            if (this.refreshCache.has(tokenHash)) {
+                const cached = this.refreshCache.get(tokenHash);
+                if (cached && cached.expiresAt > Date.now()) {
+                    return await cached.promise;
+                }
+            }
+
+            const refreshPromise = (async () => {
+                const storedToken = await this.prisma.refreshToken.findUnique({
+                    where: {
+                        tokenHash: tokenHash,
+                    }
+                })
+                if (!storedToken) {
+                    throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
+                }
+                if (storedToken.revokedAt) {
+                    // PHÁT HIỆN TẤN CÔNG LẶP LẠI (ABUSE DETECTION)
+                    // Thu hồi toàn bộ token của User này ngay lập tức!
+                    await this.prisma.refreshToken.updateMany({
+                        where: {
+                            userId: storedToken.userId,
+                            revokedAt: null
+                        },
+                        data: { revokedAt: new Date() }
+                    });
+                    throw new UnauthorizedException('Cảnh báo bảo mật: Refresh token đã bị sử dụng lại. Toàn bộ phiên đăng nhập đã bị hủy.');
+                }
+                if (storedToken.expiresAt < new Date()) {
+                    throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
+                }
+                if (payload.sub !== storedToken.userId) {
+                    throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
+                }
+                // Tạo cặp token mới
+                const newPayload = {
+                    username: payload.username,
+                    sub: payload.sub,
+                    role: payload.role,
+                };
+                const { access_token, refresh_token: new_refresh_token } = this.generateTokenPair(newPayload);
+                const newRefreshTokenPayload = this.jwtService.decode(new_refresh_token) as {
+                    exp: number;
+                };
+                await this.prisma.$transaction([
+                    this.prisma.refreshToken.update({
+                        where: {
+                            id: storedToken.id,
+                        },
+                        data: {
+                            revokedAt: new Date(),
+                        },
+                    }),
+
+                    this.prisma.refreshToken.create({
+                        data: {
+                            userId: payload.sub,
+                            tokenHash: hashRefreshToken(
+                                new_refresh_token
+                            ),
+                            expiresAt: new Date(
+                                newRefreshTokenPayload.exp * 1000
+                            ),
+                        },
+                    }),
+                ]);
+                return {
+                    access_token,
+                    refresh_token: new_refresh_token,
+                };
+            })();
+
+            // Cache the promise for 15 seconds to handle race conditions
+            this.refreshCache.set(tokenHash, {
+                promise: refreshPromise,
+                expiresAt: Date.now() + 15000,
+            });
+
+            // Cleanup old cache entries
+            setTimeout(() => {
+                this.refreshCache.delete(tokenHash);
+            }, 15000);
+
+            return await refreshPromise;
         } catch (error) {
             if (error instanceof UnauthorizedException) {
                 throw error;
