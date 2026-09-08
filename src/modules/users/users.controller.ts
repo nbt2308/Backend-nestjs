@@ -5,6 +5,8 @@ import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateUserDto } from './
 import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 import { RequirePermissions } from '@/decorator/permissions.decorator';
 import { PERMISSIONS } from '@/authorization/constants/permission';
+import type { AuthUser } from '@/auth/interfaces/auth-user.interface';
+import { CurrentUser } from '@/decorator/current-user.decorator';
 
 @Controller('users')
 export class UsersController {
@@ -24,14 +26,22 @@ export class UsersController {
     @RequirePermissions(
         PERMISSIONS.USER_READ,
     )
-    async findAll(
+    async findAllPaginate(
         @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
         @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
         @Query('sortBy', new DefaultValuePipe('createdAt')) sortBy: string,
         @Query('sortOrder', new DefaultValuePipe('desc')) sortOrder: 'asc' | 'desc',
         @Query('search', new DefaultValuePipe('')) search: string
     ) {
-        return this.usersService.findAll(page, limit, sortBy, sortOrder, search);
+        return this.usersService.findAllPaginate(page, limit, sortBy, sortOrder, search);
+    }
+
+    @Get('all')
+    @RequirePermissions(
+        PERMISSIONS.USER_READ,
+    )
+    async findAll() {
+        return this.usersService.findAll();
     }
 
     @Get("instructor")
@@ -56,8 +66,8 @@ export class UsersController {
         PERMISSIONS.USER_UPDATE,
     )
     @ResponseMessage('Cập nhật người dùng thành công')
-    async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-        const result = await this.usersService.update(id, updateUserDto);
+    async update(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() updateUserDto: UpdateUserDto) {
+        const result = await this.usersService.update(id, user.id, updateUserDto);
         return result;
     }
 
@@ -67,8 +77,8 @@ export class UsersController {
     )
     @ResponseMessage('Cập nhật trạng thái người dùng thành công')
     @HttpCode(HttpStatus.OK)
-    async updateStatus(@Body() changeStatusDto: ChangeStatusDto) {
-        return await this.usersService.changeStatus(changeStatusDto);
+    async updateStatus(@CurrentUser() user: AuthUser, @Body() changeStatusDto: ChangeStatusDto) {
+        return await this.usersService.changeStatus(user.id, changeStatusDto);
     }
 
     @Delete(':id')
@@ -105,7 +115,7 @@ export class UsersController {
     )
     @ResponseMessage('Cập nhật trạng thái người dùng thành công')
     @HttpCode(HttpStatus.OK)
-    async bulkStatus(@Body() bulkStatusDto: BulkStatusDto) {
-        return await this.usersService.bulkStatus(bulkStatusDto);
+    async bulkStatus(@CurrentUser() user: AuthUser, @Body() bulkStatusDto: BulkStatusDto) {
+        return await this.usersService.bulkStatus(user.id, bulkStatusDto);
     }
 }

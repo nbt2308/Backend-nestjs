@@ -68,7 +68,7 @@ export class CoursesService {
         }
     }
 
-    async findAll(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc', search?: string) {
+    async findAllPaginate(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc', search?: string) {
         const allowedFields = [
             'title',
             'createdAt',
@@ -120,6 +120,15 @@ export class CoursesService {
         ])
         const totalPages = Math.ceil(totalItems / take);
         return { courses, totalItems, totalPages };
+    }
+
+    async findAll() {
+        return await this.prisma.course.findMany({
+            where: {
+                deletedAt: null
+            },
+            include: { tags: true },
+        })
     }
 
     findOne(id: number) {

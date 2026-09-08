@@ -51,14 +51,22 @@ export class CoursesController {
     @RequirePermissions(
         PERMISSIONS.COURSE_READ,
     )
-    async findAll(
+    async findAllPaginate(
         @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
         @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
         @Query('sortBy', new DefaultValuePipe('createdAt')) sortBy: string,
         @Query('sortOrder', new DefaultValuePipe('desc')) sortOrder: 'asc' | 'desc',
         @Query('search', new DefaultValuePipe('')) search: string
     ) {
-        return this.coursesService.findAll(page, limit, sortBy, sortOrder, search);
+        return this.coursesService.findAllPaginate(page, limit, sortBy, sortOrder, search);
+    }
+
+    @Get('all')
+    @RequirePermissions(
+        PERMISSIONS.COURSE_READ,
+    )
+    async findAll() {
+        return this.coursesService.findAll();
     }
 
     @Patch(':id')

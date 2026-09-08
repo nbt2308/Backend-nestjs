@@ -82,7 +82,7 @@ export class UsersService {
 
     }
 
-    async findAll(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc', search?: string) {
+    async findAllPaginate(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc', search?: string) {
         const allowedFields = ['name', 'email', 'createdAt'];
         const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
 
@@ -155,6 +155,42 @@ export class UsersService {
         return { users: normalizedUsers, totalItems, totalPages };
     }
 
+    async findAll(){
+        const users = await this.prisma.user.findMany({
+            where: {
+                deletedAt: null
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                avatar: true,
+                phone: true,
+                address: true,
+                isActive: true,
+                status: true,
+                provider: true,
+                createdAt: true,
+                updatedAt: true,
+                roles: {
+                    select: {
+                        role: {
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        const normalizedUsers = users.map((user) => ({
+            ...user,
+            roles: user.roles?.map((role) => ({ id: role.role.id, name: role.role.name })) ?? [],
+        }));
+        return normalizedUsers;
+    }
     findOne(id: number) {
         return `This action returns a #${id} user`;
     }
@@ -196,9 +232,14 @@ export class UsersService {
         })
     }
 
-    async bulkStatus(bulkStatusDto: BulkStatusDto) {
+    async bulkStatus(userId: string, bulkStatusDto: BulkStatusDto) {
         try {
             const { ids, status } = bulkStatusDto;
+
+            if (ids.includes(userId)) {
+                throw new BadRequestException('Không thể thay đổi trạng thái của chính mình');
+            }
+
             const result = await this.prisma.user.updateMany({
                 where: {
                     id: {
@@ -213,6 +254,9 @@ export class UsersService {
                 count: result.count
             }
         } catch (error) {
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật trạng thái người dùng');
         }
     }
@@ -260,114 +304,120 @@ export class UsersService {
         }
     }
 
-    async update(id: string, updateUserDto: UpdateUserDto) {
+    async update(id: string, userId: string, updateUserDto: UpdateUserDto) {
         try {
-            const { name, phone, address, role, status } = updateUserDto;
+            const { name, phone, address, roles, status } = updateUserDto;
 
-            //check user exist
             const user = await this.prisma.user.findUnique({
-                where: {
-                    id: id
-                },
+                where: { id },
                 include: {
-                    roles: {
-                        include: {
-                            role: true,
-                        },
-                    },
-                    _count: {
-                        select: {
-                            courses: true
-                        }
-                    }
-                }
-            })
+                    roles: { include: { role: true } },
+                    _count: { select: { courses: true } },
+                },
+            });
+
             if (!user) {
-                throw new NotFoundException('Không tìm thấy người dùng')
+                throw new NotFoundException('Không tìm thấy người dùng');
             }
 
-            const hasInstructorRole = user.roles.some((userRole) => userRole.role.name === 'INSTRUCTOR');
-            const isChangingFromInstructor = hasInstructorRole && role && role !== 'INSTRUCTOR';
-            const hasActiveCourses = user._count.courses > 0;
-            if (isChangingFromInstructor && hasActiveCourses) {
-                throw new BadRequestException("Không thể thay đổi vai trò của giảng viên này vì hiện đang dạy trong 1 khoá học nào đó");
+            if (id === userId && status === false) {
+                throw new BadRequestException('Không thể thay đổi trạng thái của chính mình');
             }
 
-            if (phone) {
+            if (roles !== undefined) {
+                const instructorRole = await this.prisma.role.findUnique({
+                    where: { name: 'INSTRUCTOR' },
+                    select: { id: true },
+                });
+
+                const hasInstructorRole = user.roles.some(
+                    (userRole) => userRole.role.name === 'INSTRUCTOR',
+                );
+
+                const isChangingFromInstructor =
+                    hasInstructorRole &&
+                    instructorRole !== null &&
+                    !roles.includes(instructorRole.id);
+
+                if (isChangingFromInstructor && user._count.courses > 0) {
+                    throw new BadRequestException(
+                        'Không thể thay đổi vai trò của giảng viên này vì hiện đang dạy trong 1 khoá học nào đó',
+                    );
+                }
+
+                const validRoles = await this.prisma.role.findMany({
+                    where: { id: { in: roles } },
+                    select: { id: true },
+                });
+
+                if (validRoles.length !== roles.length) {
+                    throw new BadRequestException('Một hoặc nhiều vai trò không hợp lệ');
+                }
+            }
+
+            if (phone !== undefined && phone !== null) {
                 const checkPhoneExist = await this.prisma.user.findFirst({
-                    where: {
-                        phone: phone,
-                        NOT: { id: id }
-                    }
-                })
+                    where: { phone, NOT: { id } },
+                    select: { id: true },
+                });
+
                 if (checkPhoneExist) {
-                    throw new BadRequestException('Số điện thoại đã tồn tại')
+                    throw new BadRequestException('Số điện thoại đã tồn tại');
                 }
             }
 
-            if (role) {
-                const targetRole = await this.prisma.role.findUnique({
-                    where: { name: role },
-                });
-
-                if (!targetRole) {
-                    throw new BadRequestException('Vai trò không hợp lệ');
-                }
-
-                await this.prisma.userRole.deleteMany({
-                    where: { userId: id },
-                });
-
-                await this.prisma.userRole.create({
-                    data: {
-                        userId: id,
-                        roleId: targetRole.id,
-                    },
-                });
-            }
-
-            const updateUser = await this.prisma.user.update({
-                where: {
-                    id: id
-                },
-                data: {
-                    name: name,
-                    phone: phone,
-                    address: address,
-                    status: status,
-                },
-                include: {
-                    roles: {
-                        include: {
-                            role: true,
+            const updateUser = await this.prisma.$transaction(async (tx) => {
+                if (roles !== undefined) {
+                    await tx.userRole.deleteMany({
+                        where: {
+                            userId: id,
+                            roleId: { notIn: roles },
                         },
+                    });
+
+                    if (roles.length > 0) {
+                        await tx.userRole.createMany({
+                            data: roles.map((roleId) => ({ userId: id, roleId })),
+                            skipDuplicates: true,
+                        });
+                    }
+                }
+
+                return tx.user.update({
+                    where: { id },
+                    data: { name, phone, address, status },
+                    include: {
+                        roles: { include: { role: true } },
                     },
-                },
-            })
+                });
+            });
+
             return {
                 id: updateUser.id,
                 name: updateUser.name,
                 email: updateUser.email,
                 phone: updateUser.phone,
                 address: updateUser.address,
-                role: updateUser.roles[0]?.role.name ?? null,
+                roles: updateUser.roles.map((userRole) => userRole.role.name),
                 status: updateUser.status,
-            }
-        }
-        catch (error) {
-            if (error instanceof NotFoundException) {
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
                 throw error;
             }
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
+
             throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật');
         }
     }
 
-    async changeStatus(changeStatusDto: ChangeStatusDto) {
+    async changeStatus(userId: string, changeStatusDto: ChangeStatusDto) {
         try {
             const { id, status } = changeStatusDto;
+
+            if (userId === id) {
+                throw new BadRequestException('Không thể thay đổi trạng thái của chính mình');
+            }
+
             const user = await this.prisma.user.findUnique({
                 where: {
                     id: id
@@ -390,7 +440,7 @@ export class UsersService {
             }
         }
         catch (error) {
-            if (error instanceof NotFoundException) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
                 throw error;
             }
             throw new InternalServerErrorException('Có lỗi xảy ra khi thay đổi trạng thái');

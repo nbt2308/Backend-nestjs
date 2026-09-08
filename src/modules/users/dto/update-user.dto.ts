@@ -1,4 +1,4 @@
-import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsNotEmpty, IsOptional, IsPhoneNumber, IsString } from "class-validator";
+import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsPhoneNumber, IsString } from "class-validator";
 
 export type RoleName = 'ADMIN' | 'INSTRUCTOR' | 'USER';
 
@@ -21,8 +21,10 @@ export class UpdateUserDto {
     address?: string;
 
     @IsOptional()
-    @IsIn(['ADMIN', 'INSTRUCTOR', 'USER'], { message: 'Vai trò không hợp lệ' })
-    role?: RoleName;
+    @IsArray({ message: 'Dữ liệu truyền vào phải là mảng' })
+    @ArrayNotEmpty({ message: 'Danh sách ID không được để trống' })
+    @IsNumber( {},{each:true, message: 'Mỗi ID trong mảng phải là một số' })
+    roles?: number[];
 
     @IsOptional()
     @IsBoolean({ message: 'Trạng thái không hợp lệ' })
