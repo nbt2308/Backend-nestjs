@@ -26,6 +26,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuthCronService } from './auth/auth-cron.service';
 import { AuthorizationModule } from './authorization/authorization.module';
 import { PermissionGuard } from './authorization/guards/permission.guard';
+import { RolesModule } from './modules/roles/roles.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
@@ -48,6 +50,8 @@ import { PermissionGuard } from './authorization/guards/permission.guard';
         YoutubeModule,
         HomeModule,
         AuthorizationModule,
+        RolesModule,
+        PermissionsModule,
     ],
     controllers: [AppController],
     providers: [AppService,

@@ -59,14 +59,21 @@ model User {
 model Role {
   id          Int              @id @default(autoincrement())
   name        String           @unique
-  permissions RolePermission[]
+  isSystemRole Boolean          @default(false)
+  description  String?
+  permissions  RolePermission[]
   users       UserRole[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
 }
 
 model Permission {
   id          Int              @id @default(autoincrement())
   name        String           @unique
+  label       String?
   description String?
+  resource    String           @default("")
   roles       RolePermission[]
 }
 

@@ -186,16 +186,106 @@ async function main() {
 
     const permissionMap = new Map<string, number>();
 
+    // Map resource name -> tên hiển thị tiếng Việt
+    const RESOURCE_LABELS: Record<string, string> = {
+        permission: "Hệ thống (System)",
+        audit_log: "Hệ thống (System)",
+        dashboard: "Hệ thống (System)",
+        user: "Người dùng & Vai trò",
+        role: "Người dùng & Vai trò",
+        course: "Khoá học (Course)",
+        section: "Chương học (Section)",
+        lesson: "Bài học (Lesson)",
+        tag: "Nhãn (Tag)",
+        enrollment: "Ghi danh (Enrollment)",
+        wishlist: "Danh sách yêu thích",
+        order: "Đơn hàng (Order)",
+        post: "Bài viết (Post)",
+        comment: "Bình luận khoá học",
+        post_comment: "Bình luận bài viết",
+        media: "Media & File",
+    };
+
+    // Map permission name -> mô tả tiếng Việt
+    const PERMISSION_LABELS: Record<string, { label: string; desc: string }> = {
+        "permission.read": { label: "Xem danh sách quyền", desc: "Cho phép truy cập bảng phân quyền" },
+        "permission.create": { label: "Tạo quyền mới", desc: "Khởi tạo thêm các endpoint permission" },
+        "permission.update": { label: "Cập nhật quyền", desc: "Chỉnh sửa cấu hình permission" },
+        "permission.delete": { label: "Xoá quyền", desc: "Xoá bỏ các permission cũ khỏi hệ thống" },
+        "audit_log.read": { label: "Xem lịch sử hệ thống", desc: "Xem nhật ký thao tác audit logs" },
+        "dashboard.read": { label: "Xem thống kê Dashboard", desc: "Truy cập trang báo cáo tổng quan" },
+        "user.read": { label: "Xem danh sách User", desc: "Truy cập quản lý người dùng" },
+        "user.create": { label: "Tạo User", desc: "Thêm người dùng mới" },
+        "user.update": { label: "Sửa User", desc: "Cập nhật thông tin người dùng" },
+        "user.delete": { label: "Xoá User", desc: "Xoá tài khoản người dùng" },
+        "role.read": { label: "Xem danh sách Role", desc: "Truy cập quản lý vai trò" },
+        "role.create": { label: "Tạo Role", desc: "Thêm vai trò mới" },
+        "role.update": { label: "Sửa Role", desc: "Cập nhật vai trò" },
+        "role.delete": { label: "Xoá Role", desc: "Xoá vai trò" },
+        "course.read": { label: "Xem danh sách Course", desc: "Truy cập quản lý khoá học" },
+        "course.create": { label: "Tạo Course", desc: "Thêm khoá học mới" },
+        "course.update": { label: "Sửa Course", desc: "Cập nhật khoá học" },
+        "course.delete": { label: "Xoá Course", desc: "Xoá khoá học" },
+        "section.read": { label: "Xem Section", desc: "Truy cập chương học" },
+        "section.create": { label: "Tạo Section", desc: "Thêm chương học mới" },
+        "section.update": { label: "Sửa Section", desc: "Cập nhật chương học" },
+        "section.delete": { label: "Xoá Section", desc: "Xoá chương học" },
+        "lesson.read": { label: "Xem Lesson", desc: "Truy cập bài học" },
+        "lesson.create": { label: "Tạo Lesson", desc: "Thêm bài học mới" },
+        "lesson.update": { label: "Sửa Lesson", desc: "Cập nhật bài học" },
+        "lesson.delete": { label: "Xoá Lesson", desc: "Xoá bài học" },
+        "tag.read": { label: "Xem Tag", desc: "Truy cập quản lý nhãn" },
+        "tag.create": { label: "Tạo Tag", desc: "Thêm nhãn mới" },
+        "tag.update": { label: "Sửa Tag", desc: "Cập nhật nhãn" },
+        "tag.delete": { label: "Xoá Tag", desc: "Xoá nhãn" },
+        "enrollment.read": { label: "Xem ghi danh", desc: "Truy cập danh sách ghi danh" },
+        "enrollment.create": { label: "Tạo ghi danh", desc: "Ghi danh học viên" },
+        "enrollment.update": { label: "Sửa ghi danh", desc: "Cập nhật ghi danh" },
+        "enrollment.delete": { label: "Xoá ghi danh", desc: "Xoá ghi danh" },
+        "wishlist.read": { label: "Xem Wishlist", desc: "Truy cập danh sách yêu thích" },
+        "wishlist.create": { label: "Tạo Wishlist", desc: "Thêm vào yêu thích" },
+        "wishlist.delete": { label: "Xoá Wishlist", desc: "Xoá khỏi yêu thích" },
+        "order.read": { label: "Xem đơn hàng", desc: "Truy cập quản lý đơn hàng" },
+        "order.create": { label: "Tạo đơn hàng", desc: "Tạo đơn hàng mới" },
+        "order.update": { label: "Sửa đơn hàng", desc: "Cập nhật đơn hàng" },
+        "order.delete": { label: "Xoá đơn hàng", desc: "Xoá đơn hàng" },
+        "post.read": { label: "Xem bài viết", desc: "Truy cập quản lý bài viết" },
+        "post.create": { label: "Tạo bài viết", desc: "Thêm bài viết mới" },
+        "post.update": { label: "Sửa bài viết", desc: "Cập nhật bài viết" },
+        "post.delete": { label: "Xoá bài viết", desc: "Xoá bài viết" },
+        "comment.read": { label: "Xem bình luận", desc: "Truy cập bình luận khoá học" },
+        "comment.create": { label: "Tạo bình luận", desc: "Thêm bình luận" },
+        "comment.update": { label: "Sửa bình luận", desc: "Cập nhật bình luận" },
+        "comment.delete": { label: "Xoá bình luận", desc: "Xoá bình luận" },
+        "post_comment.read": { label: "Xem bình luận bài viết", desc: "Truy cập bình luận bài viết" },
+        "post_comment.create": { label: "Tạo bình luận bài viết", desc: "Thêm bình luận bài viết" },
+        "post_comment.update": { label: "Sửa bình luận bài viết", desc: "Cập nhật bình luận bài viết" },
+        "post_comment.delete": { label: "Xoá bình luận bài viết", desc: "Xoá bình luận bài viết" },
+        "media.upload": { label: "Upload Media", desc: "Tải lên file/hình ảnh" },
+        "media.delete": { label: "Xoá Media", desc: "Xoá file/hình ảnh" },
+    };
+
     for (const permissionName of Object.values(PERMISSIONS) as string[]) {
+        const rawResource = permissionName.split('.')[0];
+        const resource = RESOURCE_LABELS[rawResource] || rawResource;
+        const info = PERMISSION_LABELS[permissionName];
+        
         const permission = await prisma.permission.upsert({
             where: {
                 name: permissionName,
             },
 
-            update: {},
+            update: {
+                resource: resource,
+                label: info?.label || null,
+                description: info?.desc || null,
+            },
 
             create: {
                 name: permissionName,
+                resource: resource,
+                label: info?.label || null,
+                description: info?.desc || null,
             },
         });
 
@@ -228,6 +318,7 @@ async function main() {
 
             create: {
                 name: roleDefinition.name,
+                createdAt: new Date(),
             },
         });
 
