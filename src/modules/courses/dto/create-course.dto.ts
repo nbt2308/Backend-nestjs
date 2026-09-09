@@ -1,15 +1,29 @@
 import { CourseType, Level } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsString, IsNotEmpty, IsNumber, IsOptional, Min, IsBoolean, IsDecimal, IsEnum, ValidateIf, Max, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, Min, IsBoolean, IsDecimal, IsEnum, ValidateIf, Max, IsArray, IsUrl } from 'class-validator';
 
 export class CreateCourseDto {
     @IsString({ message: 'Tiêu đề phải là chuỗi' })
     @IsNotEmpty({ message: 'Tiêu đề không được để trống' })
     title!: string;
 
-    @IsString({ message: 'Mô tả phải là chuỗi' })
-    @IsNotEmpty({ message: 'Mô tả không được để trống' })
-    description!: string;
+    @IsString({ message: 'Giới thiệu không được để trống' })
+    @IsNotEmpty({ message: 'Giới thiệu không được để trống' })
+    introduction!: string;
+
+    @IsString({ message: 'Mục tiêu khóa học không được để trống' })
+    @IsNotEmpty({ message: 'Mục tiêu khóa học không được để trống' })
+    learningOutcomes!: string;
+
+    @IsOptional()
+    @IsString({message:'Yêu cầu khóa học phải là chuỗi'})
+    @IsNotEmpty({ message: 'Yêu cầu khóa học không được để trống' })
+    requirements?: string;
+
+    @IsOptional()
+    @IsUrl({},{message:'Link tài nguyên không đúng định dạng'})
+    @IsNotEmpty({ message: 'Link tài nguyên không được để trống' })
+    resources?: string;
 
     @Transform(({ value }) => (value !== '' && value !== undefined && value !== null ? Number(value) : 0))
     @IsOptional()

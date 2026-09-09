@@ -44,27 +44,38 @@ export class CoursesService {
                 slug = `${slug}-${Date.now().toString(36)}`;
             }
             const id = uuidv7();
-            const { tags, ...restDto } = createCourseDto;
-            const course = await this.prisma.course.create({
-                data: {
-                    id,
-                    ...restDto,
-                    slug,
-                    ...(tags && tags.length > 0 && {
+            const { tags, introduction,learningOutcomes,requirements,resources, ...restDto } = createCourseDto;
+
+            const course = await this.prisma.$transaction(async (tx) => {
+                return tx.course.create({
+                    data: {
+                        ...restDto,
+                        slug,
                         tags: {
                             connect: tags.map((tagId) => ({ id: tagId })),
                         },
-                    }),
-                },
-                include: { tags: true },
-            })
+                        courseDescription: {
+                            create: {
+                                introduction,
+                                learningOutcomes,
+                                requirements: requirements || "",
+                                resources: resources || "",
+                            },
+                        },
+                    },
+                    include: {
+                        tags: true,
+                        courseDescription: true,
+                    },
+                });
+            });
             return course;
         } catch (error) {
             console.log(error);
             if (error instanceof BadRequestException) {
                 throw error;
             }
-            throw new InternalServerErrorException('Tạo khoá học thất bại');
+            throw error;
         }
     }
 
@@ -82,21 +93,17 @@ export class CoursesService {
         if (search && search.trim() !== "") {
             whereCondition.OR = [
                 {
-                    name: {
-                        contains: search.trim(),
-                        mode: 'insensitive', // Không phân biệt chữ hoa / chữ thường (Chỉ hỗ trợ tốt trên PostgreSQL)
-                    },
-                },
-                {
                     slug: {
                         contains: search.trim(),
                         mode: 'insensitive',
                     },
                 },
                 {
-                    description: {
-                        contains: search.trim(),
-                        mode: 'insensitive',
+                    courseDescription: {
+                        introduction: {
+                            contains: search.trim(),
+                            mode: 'insensitive',
+                        },
                     },
                 },
             ];
@@ -127,7 +134,7 @@ export class CoursesService {
             where: {
                 deletedAt: null
             },
-            include: { tags: true },
+            include: { tags: true, courseDescription: true },
         })
     }
 
@@ -177,8 +184,10 @@ export class CoursesService {
                     slug = `${slug}-${Date.now().toString(36)}`
                 }
             }
-            const { tags: tagIds, ...restUpdateDto } = updateCourseDto;
+            const { introduction, learningOutcomes, requirements, resources, tags: tagIds, ...restUpdateDto } = updateCourseDto;
 
+            //check description
+            const isUndefinedDescription = (introduction === undefined || learningOutcomes === undefined || requirements === undefined || resources === undefined)
             //Ownership check 
             const isAdmin =
                 await this.authorizationService.hasRole(userId, 'ADMIN');
@@ -201,8 +210,26 @@ export class CoursesService {
                             set: tagIds.map((tagId) => ({ id: tagId })),
                         },
                     }),
+                    ...(isUndefinedDescription && {
+                        courseDescription: {
+                            upsert: {
+                                create: {
+                                    introduction: introduction ?? '',
+                                    learningOutcomes: learningOutcomes ?? '',
+                                    requirements,
+                                    resources,
+                                },
+                                update: {
+                                    ...(introduction !== undefined && { introduction }),
+                                    ...(learningOutcomes !== undefined && { learningOutcomes }),
+                                    ...(requirements !== undefined && { requirements }),
+                                    ...(resources !== undefined && { resources }),
+                                },
+                            },
+                        }
+                    })
                 },
-                include: { tags: true },
+                include: { tags: true, courseDescription: true },
             })
             return updateCourse
         } catch (error) {

@@ -157,7 +157,6 @@ model Course {
   id                 String         @id @default(uuid())
   title              String
   slug               String         @unique
-  description        String
   thumbnail          String?
   thumbnail_publicID String?
   courseType         CourseType     @default(FREE)
@@ -179,6 +178,7 @@ model Course {
   sections           Section[]
   wishlists          Wishlist[]
   tags               Tag[]          @relation("CourseToTag")
+  courseDescription  CourseDescription? 
 
   @@index([instructorId])
   @@index([courseType])
@@ -188,6 +188,20 @@ model Course {
   @@index([discount])
   @@index([createdAt])
   @@index([updatedAt])
+}
+
+model CourseDescription {
+  id        String   @id @default(uuid())
+  courseId  String   @unique
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  introduction String  @db.Text //giới thiệu
+  learningOutcomes String @db.Text //mục tiêu khóa học
+  requirements String? @db.Text //yêu cầu khi học
+  resources String? //link github,...
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Enrollment {
