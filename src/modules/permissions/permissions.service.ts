@@ -86,6 +86,7 @@ export class PermissionsService {
             "Bình luận khoá học",
             "Bình luận bài viết",
             "Media & File",
+            "Tương tác (Like/Dislike)",
         ];
         const permissions = await this.prisma.permission.findMany({
             orderBy: [

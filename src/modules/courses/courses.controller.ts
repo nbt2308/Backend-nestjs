@@ -114,7 +114,7 @@ export class CoursesController {
     @ResponseMessage('Xóa khoá học thành công')
     @HttpCode(HttpStatus.OK)
     async bulkDelete(@CurrentUser() user: AuthUser, @Body() bulkDeleteDto: BulkDeleteDto) {
-        return await this.coursesService.bulkDelete(user.id,bulkDeleteDto);
+        return await this.coursesService.bulkDelete(user.id, bulkDeleteDto);
     }
 
     @Post('bulk-update-status')
@@ -124,16 +124,25 @@ export class CoursesController {
     @ResponseMessage('Cập nhật trạng thái khoá học thành công')
     @HttpCode(HttpStatus.OK)
     async bulkStatus(@CurrentUser() user: AuthUser, @Body() bulkStatusDto: BulkStatusDto) {
-        return await this.coursesService.bulkStatus(user.id,bulkStatusDto);
+        return await this.coursesService.bulkStatus(user.id, bulkStatusDto);
     }
 
 
 
-    @Get(':id')
-    @RequirePermissions(
-        PERMISSIONS.COURSE_READ,
-    )
-    findOne(@Param('id') id: string) {
-        return this.coursesService.findOne(+id);
+    @Get(':slug/preview/:lessonId')
+    @Public()
+    @ResponseMessage('Lấy video xem trước thành công')
+    async getPreviewLesson(
+        @Param('slug') slug: string,
+        @Param('lessonId', ParseIntPipe) lessonId: number,
+    ) {
+        return this.coursesService.getPreviewLesson(slug, lessonId);
+    }
+
+    @Get(':slug')
+    @Public()
+    @ResponseMessage('Lấy thông tin khóa học thành công')
+    async findOne(@Param('slug') slug: string, @CurrentUser() user: AuthUser) {
+        return this.coursesService.findOneBySlug(slug, user?.id);
     }
 }

@@ -165,6 +165,15 @@ export class AuthService {
                     isActive: true,
                     provider: [provider],
                     [providerKey]: providerId,
+                    roles: {
+                        create: {
+                            role: {
+                                connect: {
+                                    name: 'STUDENT',
+                                },
+                            },
+                        },
+                    },
                 },
             });
         }

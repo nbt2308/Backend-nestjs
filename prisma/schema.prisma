@@ -48,6 +48,7 @@ model User {
   refreshTokens      RefreshToken[]
   roles              UserRole[]
   wishlists          Wishlist[]
+  interactions       Interaction[]
 
   @@index([status])
   @@index([isActive])
@@ -250,6 +251,23 @@ model Lesson {
   deletedAt      DateTime?
   section        Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   lessonProgress LessonProgress[]
+  resources      LessonResource[] 
+}
+
+//tài nguyên của bài giảng của khóa học (docx, pdf, ...)
+model LessonResource {
+  id        Int      @id @default(autoincrement())
+  name      String
+  key       String
+  mimeType  String
+  size      Int?
+  lessonId  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
 }
 
 model LessonProgress {
@@ -332,6 +350,8 @@ model CourseReview {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([createdAt])
 }
 
 model PostComment {
@@ -371,4 +391,20 @@ enum EnrollmentStatus {
   ENROLLED
   IN_PROGRESS
   COMPLETED
+}
+
+model Interaction {
+  id         Int      @id @default(autoincrement())
+  userId     String
+  targetId   String   // Lưu id dưới dạng chuỗi để dùng chung cho cả Int và String
+  targetType String   // Loại đối tượng (VD: "COURSE_REVIEW", "POST", "POST_COMMENT")
+  actionType String   // "LIKE" hoặc "DISLIKE"
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, targetId, targetType])
+  @@index([targetId, targetType])
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, ParseIntPipe, UploadedFiles } from '@nestjs/common';
 import { LessonsService } from './lessons.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
@@ -7,10 +7,29 @@ import { RequirePermissions } from '@/decorator/permissions.decorator';
 import { PERMISSIONS } from '@/authorization/constants/permission';
 import { CurrentUser } from '@/decorator/current-user.decorator';
 import type { AuthUser } from '@/auth/interfaces/auth-user.interface';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import 'multer';
 
 @Controller('lessons')
 export class LessonsController {
     constructor(private readonly lessonsService: LessonsService) { }
+
+    // @Post(':lessonId/resources')
+    // @UseInterceptors(FilesInterceptor('files', 5,{
+    //   limits: {
+    //     fileSize: 20 * 1024 * 1024,
+    //   },
+    // }))
+    // @ResponseMessage('Upload tài liệu thành công')
+    // @RequirePermissions(
+    //     PERMISSIONS.LESSON_RESOURCE_CREATE,
+    // )
+    // async uploadResources(
+    //     @Param('lessonId', ParseIntPipe) lessonId: number,
+    //     @UploadedFiles() files: Express.Multer.File[],
+    // ) {
+    //     return this.lessonsService.uploadResources(lessonId, files);
+    // }
 
     @Post()
     @RequirePermissions(

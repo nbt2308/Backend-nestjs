@@ -44,7 +44,7 @@ export class CoursesService {
                 slug = `${slug}-${Date.now().toString(36)}`;
             }
             const id = uuidv7();
-            const { tags, introduction,learningOutcomes,requirements,resources, ...restDto } = createCourseDto;
+            const { tags, introduction, learningOutcomes, requirements, resources, ...restDto } = createCourseDto;
 
             const course = await this.prisma.$transaction(async (tx) => {
                 return tx.course.create({
@@ -138,8 +138,201 @@ export class CoursesService {
         })
     }
 
-    findOne(id: number) {
-        return `This action returns a #${id} course`;
+    async getPreviewLesson(slug: string, lessonId: number) {
+        const lesson = await this.prisma.lesson.findFirst({
+            where: {
+                id: lessonId,
+                deletedAt: null,
+                isPreview: true,
+                section: {
+                    deletedAt: null,
+                    course: {
+                        slug,
+                        status: true,
+                        deletedAt: null,
+                    },
+                },
+            },
+            select: {
+                id: true,
+                title: true,
+                videoUrl: true,
+                videoId: true,
+                duration: true,
+                content: true,
+            },
+        });
+
+        if (!lesson) {
+            throw new NotFoundException('Không tìm thấy bài học xem trước');
+        }
+
+        return lesson;
+    }
+    async findOneBySlug(slug: string, userId: string) {
+        const course = await this.prisma.course.findFirst({
+            where: {
+                slug,
+                status: true,
+                deletedAt: null,
+            },
+            select: {
+                id: true,
+                title: true,
+                slug: true,
+                thumbnail: true,
+                courseType: true,
+                level: true,
+                price: true,
+                discount: true,
+                averageRating: true,
+                reviewCount: true,
+                studentCount: true,
+                instructor: {
+                    select: {
+                        id: true,
+                        name: true,
+                        avatar: true,
+                    },
+                },
+                tags: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                courseDescription: {
+                    select: {
+                        introduction: true,
+                        learningOutcomes: true,
+                        requirements: true,
+                        resources: true,
+                    },
+                },
+                sections: {
+                    where: {
+                        deletedAt: null,
+                    },
+                    orderBy: {
+                        order: 'asc',
+                    },
+                    select: {
+                        id: true,
+                        title: true,
+                        order: true,
+                        lessons: {
+                            where: {
+                                deletedAt: null,
+                            },
+                            orderBy: {
+                                order: 'asc',
+                            },
+                            select: {
+                                id: true,
+                                title: true,
+                                duration: true,
+                                order: true,
+                                isPreview: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!course) {
+            throw new NotFoundException('Không tìm thấy khóa học');
+        }
+
+        //instructor stats
+        const instructorCourses = await this.prisma.course.findMany({
+            where: {
+                instructorId: course.instructor.id,
+                deletedAt: null,
+                status: true
+            },
+            select: {
+                id: true,
+                averageRating: true,
+                reviewCount: true,
+            },
+        })
+        const instructorCourseIds = instructorCourses.map(item => item.id);
+
+        const instructorUniqueStudents = await this.prisma.enrollment.findMany({
+            where: {
+                courseId: {
+                    in: instructorCourseIds,
+                },
+            },
+            select: {
+                userId: true,
+            },
+            distinct: ['userId'],
+        });
+        const instructorStats = instructorCourses.reduce(
+            (acc, item) => {
+                acc.reviewCount += item.reviewCount;
+                acc.weightedRating += item.averageRating * item.reviewCount;
+                return acc;
+            },
+            {
+                reviewCount: 0,
+                weightedRating: 0,
+            },
+        );
+
+        const instructorRating =
+            instructorStats.reviewCount > 0
+                ? instructorStats.weightedRating / instructorStats.reviewCount
+                : 0;
+
+        const sections = course.sections.map((section) => ({
+            id: section.id,
+            title: section.title,
+            order: section.order,
+            lessonCount: section.lessons.length,
+            totalDuration: section.lessons.reduce(
+                (total, lesson) => total + lesson.duration,
+                0,
+            ),
+            lessons: section.lessons,
+        }));
+
+        const totalLessons = sections.reduce((total, section) => total + section.lessonCount, 0);
+        const totalDuration = sections.reduce((total, section) => total + section.totalDuration, 0);
+
+        let isEnrolled = false;
+
+        if (userId) {
+            const enrollment = await this.prisma.enrollment.findUnique({
+                where: {
+                    userId_courseId: {
+                        userId,
+                        courseId: course.id,
+                    },
+                },
+                select: {
+                    status: true,
+                },
+            });
+
+            isEnrolled = !!enrollment;
+        }
+
+        return {
+            ...course,
+            instructor: {
+                ...course.instructor,
+                studentCount: instructorUniqueStudents.length,
+                courseCount: instructorCourses.length,
+                instructorRating: Number(instructorRating.toFixed(2)),
+            },
+            sections,
+            totalLessons,
+            totalDuration,
+            isEnrolled,
+        };
     }
 
     async update(id: string, userId: string, updateCourseDto: UpdateCourseDto) {
@@ -187,7 +380,7 @@ export class CoursesService {
             const { introduction, learningOutcomes, requirements, resources, tags: tagIds, ...restUpdateDto } = updateCourseDto;
 
             //check description
-            const isUndefinedDescription = (introduction === undefined || learningOutcomes === undefined || requirements === undefined || resources === undefined)
+            const hasDescriptionFields = (introduction !== undefined || learningOutcomes !== undefined || requirements !== undefined || resources !== undefined)
             //Ownership check 
             const isAdmin =
                 await this.authorizationService.hasRole(userId, 'ADMIN');
@@ -210,7 +403,7 @@ export class CoursesService {
                             set: tagIds.map((tagId) => ({ id: tagId })),
                         },
                     }),
-                    ...(isUndefinedDescription && {
+                    ...(hasDescriptionFields && {
                         courseDescription: {
                             upsert: {
                                 create: {

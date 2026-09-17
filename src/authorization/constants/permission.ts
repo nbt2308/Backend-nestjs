@@ -77,10 +77,10 @@ export const PERMISSIONS = {
 
     // === SOCIAL & FEEDBACK ===
     // Course Comment / Review permissions
-    COURSE_COMMENT_READ: 'comment.read',
-    COURSE_COMMENT_CREATE: 'comment.create',
-    COURSE_COMMENT_UPDATE: 'comment.update',
-    COURSE_COMMENT_DELETE: 'comment.delete',
+    COURSE_REVIEW_READ: 'course_review.read',
+    COURSE_REVIEW_CREATE: 'course_review.create',
+    COURSE_REVIEW_UPDATE: 'course_review.update',
+    COURSE_REVIEW_DELETE: 'course_review.delete',
 
     // Post Comment permissions
     POST_COMMENT_READ: 'post_comment.read',
@@ -92,6 +92,11 @@ export const PERMISSIONS = {
     // Media / File Upload permissions
     MEDIA_UPLOAD: 'media.upload',
     MEDIA_DELETE: 'media.delete',
+    LESSON_RESOURCE_CREATE: 'lesson.resource.create',
+    LESSON_RESOURCE_DELETE: 'lesson.resource.delete',
+
+    // Interaction permissions: Like/Dislike
+    INTERACTION_REACT: 'interaction.react'
 } as const;
 
 export type Permission =

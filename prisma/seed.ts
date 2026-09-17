@@ -20,7 +20,7 @@ const prisma = new PrismaClient({
 const ROLES = {
     ADMIN: 'ADMIN',
     INSTRUCTOR: 'INSTRUCTOR',
-    USER: 'USER',
+    STUDENT: 'STUDENT',
 } as const;
 
 
@@ -64,11 +64,11 @@ const INSTRUCTOR_PERMISSIONS = [
     PERMISSIONS.POST_UPDATE,
     PERMISSIONS.POST_DELETE,
 
-    // Course Comment
-    PERMISSIONS.COURSE_COMMENT_READ,
-    PERMISSIONS.COURSE_COMMENT_CREATE,
-    PERMISSIONS.COURSE_COMMENT_UPDATE,
-    PERMISSIONS.COURSE_COMMENT_DELETE,
+    // Course Review
+    PERMISSIONS.COURSE_REVIEW_READ,
+    PERMISSIONS.COURSE_REVIEW_CREATE,
+    PERMISSIONS.COURSE_REVIEW_UPDATE,
+    PERMISSIONS.COURSE_REVIEW_DELETE,
 
     // Post Comment
     PERMISSIONS.POST_COMMENT_READ,
@@ -79,9 +79,11 @@ const INSTRUCTOR_PERMISSIONS = [
     // Media
     PERMISSIONS.MEDIA_UPLOAD,
     PERMISSIONS.MEDIA_DELETE,
+    PERMISSIONS.LESSON_RESOURCE_CREATE,
+    PERMISSIONS.LESSON_RESOURCE_DELETE,
 ];
 
-const USER_PERMISSIONS = [
+const STUDENT_PERMISSIONS = [
     // Course
     PERMISSIONS.COURSE_READ,
 
@@ -108,17 +110,20 @@ const USER_PERMISSIONS = [
     // Post
     PERMISSIONS.POST_READ,
 
-    // Course Comment
-    PERMISSIONS.COURSE_COMMENT_READ,
-    PERMISSIONS.COURSE_COMMENT_CREATE,
-    PERMISSIONS.COURSE_COMMENT_UPDATE,
-    PERMISSIONS.COURSE_COMMENT_DELETE,
+    // Course Review
+    PERMISSIONS.COURSE_REVIEW_READ,
+    PERMISSIONS.COURSE_REVIEW_CREATE,
+    PERMISSIONS.COURSE_REVIEW_UPDATE,
+    PERMISSIONS.COURSE_REVIEW_DELETE,
 
     // Post Comment
     PERMISSIONS.POST_COMMENT_READ,
     PERMISSIONS.POST_COMMENT_CREATE,
     PERMISSIONS.POST_COMMENT_UPDATE,
     PERMISSIONS.POST_COMMENT_DELETE,
+
+    // Interaction
+    PERMISSIONS.INTERACTION_REACT,
 ];
 
 
@@ -136,8 +141,8 @@ const roleDefinitions = [
         permissions: INSTRUCTOR_PERMISSIONS,
     },
     {
-        name: ROLES.USER,
-        permissions: USER_PERMISSIONS,
+        name: ROLES.STUDENT,
+        permissions: STUDENT_PERMISSIONS,
     },
 ];
 
@@ -163,7 +168,7 @@ const seedUsers = [
         name: 'Demo User',
         email: 'user@example.com',
         password: 'User@123456',
-        role: ROLES.USER,
+        role: ROLES.STUDENT,
     },
 ];
 
@@ -204,6 +209,7 @@ async function main() {
         comment: "Bình luận khoá học",
         post_comment: "Bình luận bài viết",
         media: "Media & File",
+        interaction: "Tương tác (Like/Dislike)",
     };
 
     // Map permission name -> mô tả tiếng Việt
@@ -253,16 +259,20 @@ async function main() {
         "post.create": { label: "Tạo bài viết", desc: "Thêm bài viết mới" },
         "post.update": { label: "Sửa bài viết", desc: "Cập nhật bài viết" },
         "post.delete": { label: "Xoá bài viết", desc: "Xoá bài viết" },
-        "comment.read": { label: "Xem bình luận", desc: "Truy cập bình luận khoá học" },
-        "comment.create": { label: "Tạo bình luận", desc: "Thêm bình luận" },
-        "comment.update": { label: "Sửa bình luận", desc: "Cập nhật bình luận" },
-        "comment.delete": { label: "Xoá bình luận", desc: "Xoá bình luận" },
+        "course_review.read": { label: "Xem đánh giá", desc: "Truy cập đánh giá khoá học" },
+        "course_review.create": { label: "Tạo đánh giá", desc: "Thêm đánh giá" },
+        "course_review.update": { label: "Sửa đánh giá", desc: "Cập nhật đánh giá" },
+        "course_review.delete": { label: "Xoá đánh giá", desc: "Xoá đánh giá" },
         "post_comment.read": { label: "Xem bình luận bài viết", desc: "Truy cập bình luận bài viết" },
         "post_comment.create": { label: "Tạo bình luận bài viết", desc: "Thêm bình luận bài viết" },
         "post_comment.update": { label: "Sửa bình luận bài viết", desc: "Cập nhật bình luận bài viết" },
         "post_comment.delete": { label: "Xoá bình luận bài viết", desc: "Xoá bình luận bài viết" },
         "media.upload": { label: "Upload Media", desc: "Tải lên file/hình ảnh" },
         "media.delete": { label: "Xoá Media", desc: "Xoá file/hình ảnh" },
+        "lesson.resource.create": { label: "Upload Tài nguyên bài học", desc: "Tải lên file pdf đính kèm bài học" },
+        "lesson.resource.delete": { label: "Xoá Tài nguyên bài học", desc: "Xoá file pdf đính kèm bài học" },
+
+        "interaction.react": { label: "Tương tác (Like/Dislike)", desc: "Like/Dislike bài học, bài viết, đánh giá" },
     };
 
     for (const permissionName of Object.values(PERMISSIONS) as string[]) {

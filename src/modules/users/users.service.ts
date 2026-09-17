@@ -536,7 +536,7 @@ export class UsersService {
                     create: {
                         role: {
                             connect: {
-                                name: 'USER',
+                                name: 'STUDENT',
                             },
                         },
                     },

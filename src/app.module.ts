@@ -8,7 +8,6 @@ import { SectionsModule } from './modules/sections/sections.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
 import { WishlistsModule } from './modules/wishlists/wishlists.module';
 import { PostsModule } from './modules/posts/posts.module';
-import { CourseCommentsModule } from './modules/course-comments/course-comments.module';
 import { PostCommentsModule } from './modules/post-comments/post-comments.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { OrderItemsModule } from './modules/order-items/order-items.module';
@@ -28,6 +27,9 @@ import { AuthorizationModule } from './authorization/authorization.module';
 import { PermissionGuard } from './authorization/guards/permission.guard';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { StorageModule } from './storage/storage.module';
+import { CourseReviewsModule } from './modules/course-reviews/course-reviews.module';
+import { InteractionModule } from './modules/interaction/interaction.module';
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
@@ -38,7 +40,6 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
         LessonsModule,
         WishlistsModule,
         PostsModule,
-        CourseCommentsModule,
         PostCommentsModule,
         OrdersModule,
         OrderItemsModule,
@@ -52,6 +53,9 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
         AuthorizationModule,
         RolesModule,
         PermissionsModule,
+        // StorageModule,
+        CourseReviewsModule,
+        InteractionModule,
     ],
     controllers: [AppController],
     providers: [AppService,
