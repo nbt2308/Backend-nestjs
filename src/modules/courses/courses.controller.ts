@@ -37,6 +37,16 @@ export class CoursesController {
             },
         );
     }
+
+    @Public()
+    @ResponseMessage('Lấy danh sách khóa học thành công')
+    @Get(':slug/related-courses')
+    async findRelatedCoursesBySlug(
+        @Param('slug') slug: string
+    ) {
+        return this.coursesService.findRelatedCoursesBySlug(slug);
+
+    }
     @Post()
     @RequirePermissions(
         PERMISSIONS.COURSE_CREATE,

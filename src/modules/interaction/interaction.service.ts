@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { CreateInteractionDto } from './dto/create-interaction.dto';
 import { UpdateInteractionDto } from './dto/update-interaction.dto';
 import { PrismaService } from '@/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class InteractionService {
@@ -9,8 +10,9 @@ export class InteractionService {
   async toggleInteraction(userId: string, dto: CreateInteractionDto) {
     const { targetId, targetType, actionType } = dto;
 
-    // Chạy mọi thao tác bên trong Prisma Transaction
-    return await this.prisma.$transaction(async (prisma) => {
+    try {
+      // Chạy mọi thao tác bên trong Prisma Transaction
+      return await this.prisma.$transaction(async (prisma) => {
       // 1. Tìm xem user đã tương tác với đối tượng này chưa
       const existingInteraction = await prisma.interaction.findUnique({
         where: {
@@ -21,6 +23,7 @@ export class InteractionService {
           },
         },
       });
+      
 
 
       // Hàm helper để tạo object tăng/giảm likes/dislikes
@@ -125,6 +128,14 @@ export class InteractionService {
         myInteraction
       };
     });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new ConflictException('Thao tác quá nhanh, vui lòng chờ trong giây lát.');
+        }
+      }
+      throw error;
+    }
   }
 
 

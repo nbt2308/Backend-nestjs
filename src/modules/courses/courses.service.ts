@@ -1006,4 +1006,63 @@ export class CoursesService {
 
 
     }
+
+    async findRelatedCoursesBySlug(slug: string) {
+        
+        const course = await this.prisma.course.findFirst({
+            where: {
+                slug,
+                status: true,
+                deletedAt: null,
+            },
+            select: {
+                id: true,
+                courseType: true,
+                tags: true,
+            },
+        });
+
+        if (!course) {
+            throw new NotFoundException('Không tìm thấy khóa học');
+        }
+        
+        const relatedCourses = await this.prisma.course.findMany({
+            where: {
+                id: {
+                    not: course.id,
+                },
+                deletedAt: null,
+                status: true,
+                AND: [
+                    {
+                        courseType: course.courseType,
+                    },
+                    {
+                        tags: {
+                            some: {
+                                id: {
+                                    in: course.tags.map((tag) => tag.id),
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+            include: {
+                instructor: {
+                    select: {
+                        name: true,
+                        avatar: true,
+                    },
+                },
+                tags: {
+                    select: {
+                        name: true,
+                    },
+                },
+            },
+            take: 4,
+        });
+        return relatedCourses;
+    }
 }
