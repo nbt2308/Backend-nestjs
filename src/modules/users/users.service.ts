@@ -207,6 +207,7 @@ export class UsersService {
                         },
                     },
                     status: true,
+                    isActive:true,
                     deletedAt: null,
                 },
                 select: {
