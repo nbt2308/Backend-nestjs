@@ -1,6 +1,7 @@
 import { CourseType, Level } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsString, IsNotEmpty, IsNumber, IsOptional, Min, IsBoolean, IsDecimal, IsEnum, ValidateIf, Max, IsArray, IsUrl } from 'class-validator';
+import { MinLines } from './min-lines.validator';
 
 export class CreateCourseDto {
     @IsString({ message: 'Tiêu đề phải là chuỗi' })
@@ -13,15 +14,16 @@ export class CreateCourseDto {
 
     @IsString({ message: 'Mục tiêu khóa học không được để trống' })
     @IsNotEmpty({ message: 'Mục tiêu khóa học không được để trống' })
+    @MinLines(4, { message: 'Cần nhập ít nhất 4 mục tiêu (mỗi dòng là một mục tiêu)' })
     learningOutcomes!: string;
 
     @IsOptional()
-    @IsString({message:'Yêu cầu khóa học phải là chuỗi'})
+    @IsString({ message: 'Yêu cầu khóa học phải là chuỗi' })
     @IsNotEmpty({ message: 'Yêu cầu khóa học không được để trống' })
     requirements?: string;
 
     @IsOptional()
-    @IsUrl({},{message:'Link tài nguyên không đúng định dạng'})
+    @IsUrl({}, { message: 'Link tài nguyên không đúng định dạng' })
     @IsNotEmpty({ message: 'Link tài nguyên không được để trống' })
     resources?: string;
 
@@ -42,6 +44,10 @@ export class CreateCourseDto {
     @IsNotEmpty({ message: 'Tag không được để trống' })
     tags!: number[];
 
+    @IsNumber()
+    @IsNotEmpty({ message: 'Danh mục không được để trống' })
+    categoryId!: number;
+
     @IsEnum(["BEGINNER", "INTERMEDIATE", "ADVANCED"], { message: 'Cấp độ phải là một trong các giá trị: BEGINNER, INTERMEDIATE, ADVANCED' })
     @IsNotEmpty({ message: 'Cấp độ không được để trống' })
     level!: Level;
@@ -58,9 +64,6 @@ export class CreateCourseDto {
     @IsOptional()
     thumbnail_publicID?: string;
 
-    @IsBoolean({ message: 'Trạng thái không hợp lệ' })
-    @IsNotEmpty({ message: 'Trạng thái không được để trống' })
-    status!: boolean;
 
     @IsString({ message: 'ID của giảng viên phải là chuỗi' })
     @IsNotEmpty({ message: 'ID của giảng viên không được để trống' })

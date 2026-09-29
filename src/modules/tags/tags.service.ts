@@ -112,6 +112,14 @@ export class TagsService {
                 where: {
                     status: true,
                 },
+                include: {
+                    _count: {
+                        select: {
+                            courses: true,
+                            posts: true
+                        }
+                    }
+                }
 
             });
         } catch (error) {

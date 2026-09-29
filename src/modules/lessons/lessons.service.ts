@@ -1,20 +1,29 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-import { YoutubeService } from '@/youtube/youtube.service';
 import { StorageService } from '@/storage/storage.service';
 import { uuidv4 } from 'uuidv7';
 import { fileTypeFromBuffer } from 'file-type';
 import { LessonAccessService } from './lessons-access.service';
+import { VideoUploadService } from '@/video/video-upload.service';
+import { unlink } from 'fs/promises';
+import { CleanupService } from '@/cleanup/cleanup.service';
+import { extractPublicIdsFromHtml } from '@/media/media.utils';
+import { CourseStatus } from '@prisma/client';
+import { stripHtmlTags } from '@/helpers/stripHtml.util';
+import { AuthorizationService } from '@/authorization/authorization.service';
+
 @Injectable()
 export class LessonsService {
   constructor(private prisma: PrismaService,
     private readonly lessonAccessService: LessonAccessService,
-    private readonly youtubeService: YoutubeService,
-    private readonly storageService: StorageService) { }
+    private readonly storageService: StorageService,
+    private readonly videoUploadService: VideoUploadService,
+    private readonly authorizationService: AuthorizationService,
+    private readonly cleanupService: CleanupService) { }
 
-  async uploadResources(lessonId: number, files: Express.Multer.File[]) {
+  async uploadResources(userId: string, lessonId: number, files: Express.Multer.File[]) {
     //validate mảng files gửi xuống
     if (!files || files.length === 0) {
       throw new BadRequestException('Phải có ít nhất 1 file');
@@ -34,6 +43,12 @@ export class LessonsService {
         section: {
           select: {
             courseId: true,
+            course: {
+              select: {
+                instructorId: true,
+                status: true,
+              }
+            }
           },
         },
       },
@@ -41,6 +56,16 @@ export class LessonsService {
 
     if (!lesson) {
       throw new NotFoundException('Bài giảng không tồn tại');
+    }
+    const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
+
+    if (!isAdmin && lesson.section.course.instructorId !== userId) {
+      throw new ForbiddenException(
+        'Bạn không có quyền thêm tài nguyên vào bài giảng này',
+      );
+    }
+    if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(lesson.section.course.status)) {
+      throw new BadRequestException('Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt');
     }
 
     const allowedTypes = {
@@ -172,38 +197,72 @@ export class LessonsService {
 
   }
 
-  async create(createLessonDto: CreateLessonDto) {
+  async create(userId: string, createLessonDto: CreateLessonDto, videoFile: Express.Multer.File) {
+    const filePath = videoFile?.path;
+    let lessonId: number | null = null;
     try {
+      if (!videoFile) {
+        throw new BadRequestException('Phải upload video cho bài giảng');
+      }
       const section = await this.prisma.section.findUnique({
         where: {
           id: createLessonDto.sectionId
-        }
+        },
+        include: { course: true }
       })
       if (!section) {
         throw new BadRequestException("Không tìm thấy chương")
       }
-      let videoId: string = "";
-      let duration: number = 0;
+      const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
 
-      if (createLessonDto.videoUrl) {
-        const ytData = await this.youtubeService.getVideoDetails(createLessonDto.videoUrl);
-        videoId = ytData.videoId;
-        duration = ytData.duration;
+      if (!isAdmin && section.course.instructorId !== userId) {
+        throw new ForbiddenException(
+          'Bạn không có quyền thêm bài giảng vào khóa học này',
+        );
       }
+      if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(section.course.status)) {
+        throw new BadRequestException('Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt');
+      }
+
+
       const lesson = await this.prisma.lesson.create({
         data: {
           title: createLessonDto.title,
-          videoUrl: createLessonDto.videoUrl,
           content: createLessonDto.content,
           order: createLessonDto.order,
           isPreview: createLessonDto.isPreview,
           sectionId: createLessonDto.sectionId,
-          videoId: videoId,
-          duration: duration,
+          videoId: null,
+          duration: null,
+          videoStatus: 'PENDING',
         }
+
       })
+      lessonId = lesson.id;
+
+      //thêm vào queue để upload video lên youtube (đưa job cho anh công nhân)
+      await this.videoUploadService.addUploadJob({
+        lessonId: lesson.id,
+        filePath: videoFile.path,
+        title: createLessonDto.title,
+        description: stripHtmlTags(createLessonDto.content),
+      });
       return lesson;
     } catch (error) {
+      //nếu trong quá trình tạo bài giảng có lỗi thì xoá bài giảng vừa tạo và xoá file video đã lưu trong temp
+      if (lessonId) {
+        await this.prisma.lesson.delete({
+          where: {
+            id: lessonId,
+          },
+        }).catch(() => { });
+      }
+
+      //xoá file video đã lưu trong temp
+      if (filePath) {
+        await unlink(filePath).catch(() => { });
+      }
+
       if (error instanceof BadRequestException) {
         throw error
       }
@@ -220,7 +279,8 @@ export class LessonsService {
     return `This action returns a #${id} lesson`;
   }
 
-  async update(id: number, instructorId: string, updateLessonDto: UpdateLessonDto) {
+  async update(id: number, userId: string, updateLessonDto: UpdateLessonDto, videoFile?: Express.Multer.File) {
+    const filePath = videoFile?.path;
     try {
       const lesson = await this.prisma.lesson.findUnique({
         where: {
@@ -232,7 +292,8 @@ export class LessonsService {
               courseId: true,
               course: {
                 select: {
-                  instructorId: true
+                  instructorId: true,
+                  status: true
                 }
               }
             }
@@ -242,35 +303,79 @@ export class LessonsService {
       if (!lesson) {
         throw new BadRequestException("Không tìm thấy bài giảng")
       }
-      if (lesson.section.course.instructorId !== instructorId) {
+      const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
+
+      if (!isAdmin && lesson.section.course.instructorId !== userId) {
         throw new ForbiddenException("Bạn không có quyền cập nhật bài giảng này")
       }
-      let videoId: string = "";
-      let duration: number = 0;
-
-      if (updateLessonDto.videoUrl) {
-        const ytData = await this.youtubeService.getVideoDetails(updateLessonDto.videoUrl);
-        videoId = ytData.videoId;
-        duration = ytData.duration;
+      if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(lesson.section.course.status)) {
+        throw new BadRequestException('Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt');
       }
+      if (videoFile && ['PENDING', 'UPLOADING', 'PROCESSING'].includes(lesson.videoStatus)) {
+        throw new ConflictException('Video hiện đang được xử lý, vui lòng chờ video hoàn tất trước khi upload video mới');
+      }
+
+
       const updatedLesson = await this.prisma.lesson.update({
         where: {
           id: id
         },
         data: {
           title: updateLessonDto.title,
-          videoUrl: updateLessonDto.videoUrl,
           content: updateLessonDto.content,
           order: updateLessonDto.order,
           isPreview: updateLessonDto.isPreview,
           sectionId: updateLessonDto.sectionId,
-          videoId: videoId,
-          duration: duration,
+            ...(videoFile && {
+            oldVideoId: lesson.videoId, // lưu videoId cũ để processor xóa sau khi video mới process xong
+            videoId: null,
+            duration: null,
+            videoStatus: 'PENDING',
+            videoError: null,
+          }),
         }
       })
+
+      // Dọn ảnh Cloudinary bị gỡ khỏi nội dung (ảnh vẫn còn dùng thì giữ lại)
+      if (updateLessonDto.content !== undefined) {
+        const oldIds = extractPublicIdsFromHtml(lesson.content);
+        const newIds = new Set(extractPublicIdsFromHtml(updateLessonDto.content));
+        const removed = oldIds.filter((publicId) => !newIds.has(publicId));
+        if (removed.length > 0) {
+          await this.cleanupService.addCloudinaryCleanupJob(removed);
+        }
+      }
+      if (videoFile) {
+        //bọc try catch tại vì nếu addjob thất bại thì rollback lại dữ liệu cũ
+        try {
+          await this.videoUploadService.addUploadJob({
+            lessonId: lesson.id,
+            filePath: videoFile.path,
+            title: updateLessonDto.title ?? lesson.title,
+            description: stripHtmlTags(updateLessonDto.content),
+          });
+        }
+        catch (error) {
+          await this.prisma.lesson.update({
+            where: { id: lesson.id },
+            data: {
+              videoId: lesson.videoId,
+              oldVideoId: lesson.oldVideoId,
+              duration: lesson.duration,
+              videoStatus: lesson.videoStatus,
+              videoError: lesson.videoError,
+            },
+          })
+          throw error;
+        }
+
+      }
       return updatedLesson;
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof ForbiddenException) {
+      if (filePath) {
+        await unlink(filePath).catch(() => { });
+      }
+      if (error instanceof BadRequestException || error instanceof ForbiddenException || error instanceof ConflictException) {
         throw error
       }
       throw new BadRequestException("Lỗi khi cập nhật bài giảng")
@@ -289,7 +394,8 @@ export class LessonsService {
               courseId: true,
               course: {
                 select: {
-                  instructorId: true
+                  instructorId: true,
+                  status: true
                 }
               }
             }
@@ -299,8 +405,15 @@ export class LessonsService {
       if (!lesson) {
         throw new BadRequestException("Không tìm thấy bài giảng")
       }
-      if (lesson.section.course.instructorId !== instructorId) {
+      const isAdmin = await this.authorizationService.hasRole(
+        instructorId,
+        'ADMIN',
+      );
+      if (!isAdmin && lesson.section.course.instructorId !== instructorId) {
         throw new ForbiddenException("Bạn không có quyền xóa bài giảng này")
+      }
+      if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(lesson.section.course.status)) {
+        throw new BadRequestException('Không thể xóa bài giảng khi khóa học đang xuất bản hoặc chờ duyệt');
       }
       await this.prisma.lesson.update({
         where: {
@@ -310,6 +423,7 @@ export class LessonsService {
           deletedAt: new Date(),
         }
       })
+      this.cleanupService.addLessonCleanupJob(id);
       return lesson;
     }
     catch (error) {

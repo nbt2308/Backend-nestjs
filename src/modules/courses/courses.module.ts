@@ -3,9 +3,10 @@ import { CoursesService } from './courses.service';
 import { CoursesController } from './courses.controller';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AuthorizationModule } from '@/authorization/authorization.module';
+import { CleanupModule } from '@/cleanup/cleanup.module';
 
 @Module({
-  imports: [PrismaModule, AuthorizationModule],
+  imports: [PrismaModule, AuthorizationModule, CleanupModule],
   controllers: [CoursesController],
   providers: [CoursesService],
   exports: [CoursesService]

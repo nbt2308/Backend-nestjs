@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CreateCourseReviewDto } from './dto/create-course-review.dto';
 import { UpdateCourseReviewDto } from './dto/update-course-review.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-import { EnrollmentStatus } from '@prisma/client';
+import { EnrollmentStatus, CourseStatus } from '@prisma/client';
 
 @Injectable()
 export class CourseReviewsService {
@@ -14,7 +14,7 @@ export class CourseReviewsService {
     const course = await this.prisma.course.findFirst({
       where: {
         slug,
-        status: true,
+        status: CourseStatus.PUBLISHED,
         deletedAt: null,
       },
       select: {
@@ -160,7 +160,7 @@ export class CourseReviewsService {
       const course = await this.prisma.course.findFirst({
         where: {
           slug,
-          status: true,
+          status: CourseStatus.PUBLISHED,
           deletedAt: null,
         },
         select: {
@@ -284,7 +284,7 @@ export class CourseReviewsService {
           userId,
           course: {
             slug,
-            status: true,
+            status: CourseStatus.PUBLISHED,
             deletedAt: null,
           }
         }
@@ -359,7 +359,7 @@ export class CourseReviewsService {
         userId,
         course: {
           slug,
-          status: true,
+          status: CourseStatus.PUBLISHED,
           deletedAt: null,
         },
       },

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Lesson" ALTER COLUMN "videoId" DROP NOT NULL,
+ALTER COLUMN "duration" DROP NOT NULL;

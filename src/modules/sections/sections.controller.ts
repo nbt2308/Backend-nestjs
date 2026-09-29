@@ -17,8 +17,8 @@ export class SectionsController {
         PERMISSIONS.SECTION_CREATE,
     )
     @ResponseMessage('Tạo chương mới thành công')
-    async create(@Body() createSectionDto: CreateSectionDto) {
-        return await this.sectionsService.create(createSectionDto);
+    async create(@CurrentUser() user: AuthUser, @Body() createSectionDto: CreateSectionDto) {
+        return await this.sectionsService.create(createSectionDto, user.id);
     }
 
     @Get()

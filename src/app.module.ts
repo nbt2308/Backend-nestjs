@@ -30,8 +30,13 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { StorageModule } from './storage/storage.module';
 import { CourseReviewsModule } from './modules/course-reviews/course-reviews.module';
 import { InteractionModule } from './modules/interaction/interaction.module';
+import { BullModule } from '@nestjs/bullmq';
+import { VideoUploadModule } from './video/video-upload.module';
+import { CleanupModule } from './cleanup/cleanup.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 @Module({
     imports: [
+        
         ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
         ScheduleModule.forRoot(),
         UsersModule,
@@ -48,7 +53,7 @@ import { InteractionModule } from './modules/interaction/interaction.module';
         MailModule,
         MediaModule,
         TagsModule,
-        YoutubeModule,
+        // YoutubeModule,
         HomeModule,
         AuthorizationModule,
         RolesModule,
@@ -56,6 +61,9 @@ import { InteractionModule } from './modules/interaction/interaction.module';
         // StorageModule,
         CourseReviewsModule,
         InteractionModule,
+        VideoUploadModule,
+        CleanupModule,
+        CategoriesModule,
     ],
     controllers: [AppController],
     providers: [AppService,

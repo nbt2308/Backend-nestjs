@@ -25,6 +25,7 @@ model User {
   avatar             String?
   phone              String?          @unique
   address            String?
+  biography          String?          @db.Text
   googleId           String?          @unique
   githubId           String?          @unique
   isActive           Boolean          @default(false)
@@ -49,7 +50,8 @@ model User {
   roles              UserRole[]
   wishlists          Wishlist[]
   interactions       Interaction[]
-
+  approvedCourses    Course[]           @relation("CourseApprovedBy")
+  deletedCourses     Course[]           @relation("CourseDeletedBy")
   @@index([status])
   @@index([isActive])
   @@index([email])
@@ -58,15 +60,15 @@ model User {
 }
 
 model Role {
-  id          Int              @id @default(autoincrement())
-  name        String           @unique
+  id           Int              @id @default(autoincrement())
+  name         String           @unique
   isSystemRole Boolean          @default(false)
   description  String?
   permissions  RolePermission[]
-  users       UserRole[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  deletedAt   DateTime?
+  users        UserRole[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  deletedAt    DateTime?
 }
 
 model Permission {
@@ -154,34 +156,59 @@ model Tag {
   posts       Post[]   @relation("PostToTag")
 }
 
+model Category {
+  id          Int        @id @default(autoincrement())
+  name        String
+  slug        String     @unique
+  description String?
+  thumbnail   String?
+  status      Boolean    @default(true)
+  parentId    Int?
+  parent      Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryToCategory")
+  courses     Course[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
 model Course {
-  id                 String         @id @default(uuid())
+  id                 String             @id @default(uuid())
   title              String
-  slug               String         @unique
+  slug               String             @unique
   thumbnail          String?
   thumbnail_publicID String?
-  courseType         CourseType     @default(FREE)
-  level              Level          @default(BEGINNER)
-  status             Boolean        @default(true)
-  price              Decimal        @default(0) @db.Decimal(12, 2)
-  discount           Decimal        @default(0) @db.Decimal(12, 2)
+  courseType         CourseType         @default(FREE)
+  level              Level              @default(BEGINNER)
+  status             CourseStatus       @default(DRAFT)
+  reason_rejected    String?
+  approvedAt         DateTime?
+  approvedById       String?
+  price              Decimal            @default(0) @db.Decimal(12, 2)
+  discount           Decimal            @default(0) @db.Decimal(12, 2)
+  categoryId         Int
   instructorId       String
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
   deletedAt          DateTime?
-  averageRating      Float          @default(0)
-  reviewCount        Int            @default(0)
-  studentCount       Int            @default(0)
-  instructor         User           @relation(fields: [instructorId], references: [id])
+  deletedById        String?
+  deletedReason      String?
+  averageRating      Float              @default(0)
+  reviewCount        Int                @default(0)
+  studentCount       Int                @default(0)
+  category           Category           @relation(fields: [categoryId], references: [id])
+  instructor         User               @relation(fields: [instructorId], references: [id])
   reviews            CourseReview[]
   enrollments        Enrollment[]
   orderItems         OrderItem[]
   sections           Section[]
   wishlists          Wishlist[]
-  tags               Tag[]          @relation("CourseToTag")
-  courseDescription  CourseDescription? 
+  tags               Tag[]              @relation("CourseToTag")
+  courseDescription  CourseDescription?
+  approvedBy         User?              @relation("CourseApprovedBy", fields: [approvedById], references: [id])
+  deletedBy          User?              @relation("CourseDeletedBy", fields: [deletedById], references: [id])
 
   @@index([instructorId])
+  @@index([categoryId])
   @@index([courseType])
   @@index([level])
   @@index([status])
@@ -189,17 +216,20 @@ model Course {
   @@index([discount])
   @@index([createdAt])
   @@index([updatedAt])
+  @@index([approvedById])
+  @@index([deletedAt])
+  @@index([deletedById])
 }
 
 model CourseDescription {
-  id        String   @id @default(uuid())
-  courseId  String   @unique
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  courseId String @unique
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-  introduction String  @db.Text //giới thiệu
-  learningOutcomes String @db.Text //mục tiêu khóa học
-  requirements String? @db.Text //yêu cầu khi học
-  resources String? //link github,...
+  introduction     String  @db.Text //giới thiệu
+  learningOutcomes String  @db.Text //mục tiêu khóa học
+  requirements     String? @db.Text //yêu cầu khi học
+  resources        String? //link github,...
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -237,21 +267,24 @@ model Section {
 }
 
 model Lesson {
-  id             Int              @id @default(autoincrement())
-  title          String
-  videoUrl       String
-  videoId        String
-  duration       Int
-  content        String?
-  order          Int
-  isPreview      Boolean          @default(false)
-  sectionId      Int
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  deletedAt      DateTime?
-  section        Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  lessonProgress LessonProgress[]
-  resources      LessonResource[] 
+  id                  Int               @id @default(autoincrement())
+  title               String
+  videoStatus         VideoUploadStatus @default(PENDING)
+  videoError          String?
+  videoId             String?
+  oldVideoId          String?
+  processingStartedAt DateTime?
+  duration            Int?
+  content             String?           @db.Text
+  order               Int
+  isPreview           Boolean           @default(false)
+  sectionId           Int
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deletedAt           DateTime?
+  section             Section           @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lessonProgress      LessonProgress[]
+  resources           LessonResource[]
 }
 
 //tài nguyên của bài giảng của khóa học (docx, pdf, ...)
@@ -265,7 +298,7 @@ model LessonResource {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@index([lessonId])
 }
@@ -393,18 +426,44 @@ enum EnrollmentStatus {
   COMPLETED
 }
 
+enum VideoUploadStatus {
+  PENDING
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum CourseStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+  UNPUBLISHED
+}
+
 model Interaction {
-  id         Int      @id @default(autoincrement())
+  id         Int    @id @default(autoincrement())
   userId     String
-  targetId   String   // Lưu id dưới dạng chuỗi để dùng chung cho cả Int và String
-  targetType String   // Loại đối tượng (VD: "COURSE_REVIEW", "POST", "POST_COMMENT")
-  actionType String   // "LIKE" hoặc "DISLIKE"
+  targetId   String // Lưu id dưới dạng chuỗi để dùng chung cho cả Int và String
+  targetType String // Loại đối tượng (VD: "COURSE_REVIEW", "POST", "POST_COMMENT")
+  actionType String // "LIKE" hoặc "DISLIKE"
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, targetId, targetType])
   @@index([targetId, targetType])
+}
+
+model YoutubeCredential {
+  id           Int      @id @default(autoincrement())
+  accessToken  String?  @db.Text
+  refreshToken String   @db.Text
+  expiryDate   BigInt?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

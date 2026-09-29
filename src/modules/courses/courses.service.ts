@@ -1,16 +1,22 @@
 import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateCourseDto } from './dto/create-course.dto';
-import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateCourseDto } from './dto/update-course.dto';
+import { BulkDeleteDto, UpdateCourseDto, SubmitCourseDto, ApproveCourseDto, BulkApproveCourseDto, RejectCourseDto, UnpublishCourseDto } from './dto/update-course.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { generateSlug } from '@/helpers/slug.util';
 import { uuidv7 } from 'uuidv7';
-import { CourseType, Level, Prisma } from '@prisma/client';
+import { CourseType, Level, CourseStatus, Prisma } from '@prisma/client';
 import { normalizeNumberArray, normalizeStringArray } from '@/helpers/normalizeArray.utils';
 import { AuthorizationService } from '@/authorization/authorization.service';
+import { CleanupService } from '@/cleanup/cleanup.service';
+import { extractPublicIdsFromHtml } from '@/media/media.utils';
 
 @Injectable()
 export class CoursesService {
-    constructor(private readonly prisma: PrismaService, private readonly authorizationService: AuthorizationService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly authorizationService: AuthorizationService,
+        private readonly cleanupService: CleanupService,
+    ) { }
 
     async create(createCourseDto: CreateCourseDto) {
         try {
@@ -42,6 +48,31 @@ export class CoursesService {
             })
             if (checkExistSlug) {
                 slug = `${slug}-${Date.now().toString(36)}`;
+            }
+
+            //check exist category
+            const existCategory = await this.prisma.category.findFirst({
+                where: {
+                    id: createCourseDto.categoryId,
+                    status: true,
+                },
+                select: {
+                    id: true,
+                    parentId: true,
+                    _count: {
+                        select: {
+                            children: true,
+                        },
+                    },
+                },
+            });
+            if (!existCategory) {
+                throw new BadRequestException('Danh mục không tồn tại hoặc đã bị vô hiệu hóa');
+            }
+            if (existCategory._count.children > 0) {
+                throw new BadRequestException(
+                    'Không thể chọn danh mục gốc có danh mục con',
+                );
             }
             const id = uuidv7();
             const { tags, introduction, learningOutcomes, requirements, resources, ...restDto } = createCourseDto;
@@ -134,7 +165,27 @@ export class CoursesService {
             where: {
                 deletedAt: null
             },
-            include: { tags: true, courseDescription: true },
+            include: {
+                instructor: {
+                    select: {
+                        name: true,
+                        email: true,
+                        avatar: true,
+                        id: true,
+                        createdAt:true
+                    }
+                },
+                tags: true,
+                courseDescription: true,
+                category: {
+                    select: {
+                        children: true,
+                        parentId:true,
+                        name:true,
+                        id:true
+                    }
+                }
+            },
         })
     }
 
@@ -148,7 +199,7 @@ export class CoursesService {
                     deletedAt: null,
                     course: {
                         slug,
-                        status: true,
+                        status: CourseStatus.PUBLISHED,
                         deletedAt: null,
                     },
                 },
@@ -156,7 +207,6 @@ export class CoursesService {
             select: {
                 id: true,
                 title: true,
-                videoUrl: true,
                 videoId: true,
                 duration: true,
                 content: true,
@@ -173,11 +223,12 @@ export class CoursesService {
         const course = await this.prisma.course.findFirst({
             where: {
                 slug,
-                status: true,
+                status: { in: [CourseStatus.PUBLISHED, CourseStatus.UNPUBLISHED] },
                 deletedAt: null,
             },
             select: {
                 id: true,
+                status: true,
                 title: true,
                 slug: true,
                 thumbnail: true,
@@ -188,6 +239,7 @@ export class CoursesService {
                 averageRating: true,
                 reviewCount: true,
                 studentCount: true,
+                updatedAt: true,
                 instructor: {
                     select: {
                         id: true,
@@ -249,7 +301,7 @@ export class CoursesService {
             where: {
                 instructorId: course.instructor.id,
                 deletedAt: null,
-                status: true
+                status: CourseStatus.PUBLISHED
             },
             select: {
                 id: true,
@@ -293,7 +345,7 @@ export class CoursesService {
             order: section.order,
             lessonCount: section.lessons.length,
             totalDuration: section.lessons.reduce(
-                (total, lesson) => total + lesson.duration,
+                (total, lesson) => lesson.duration ? total + lesson.duration : total,
                 0,
             ),
             lessons: section.lessons,
@@ -318,6 +370,11 @@ export class CoursesService {
             });
 
             isEnrolled = !!enrollment;
+        }
+
+        // Nếu course UNPUBLISHED thì chỉ user đã mua mới xem được
+        if (course.status === CourseStatus.UNPUBLISHED && !isEnrolled) {
+            throw new NotFoundException('Không tìm thấy khóa học');
         }
 
         return {
@@ -386,8 +443,60 @@ export class CoursesService {
                 await this.authorizationService.hasRole(userId, 'ADMIN');
 
             if (!isAdmin && course.instructorId !== userId) {
+                throw new ForbiddenException('Bạn không có quyền cập nhật khóa học này');
+            }
+            if (!isAdmin && !([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(course.status)) {
+                throw new BadRequestException('Khóa học phải ở trạng thái DRAFT, REJECTED hoặc UNPUBLISHED mới có thể cập nhật');
+            }
 
-                throw new ForbiddenException('Ban không có quyền cập nhật khóa học này');
+            // Validate status transition theo bảng rule
+            if (updateCourseDto.status && updateCourseDto.status !== course.status) {
+                const ALLOWED_TRANSITIONS: Record<CourseStatus, CourseStatus[]> = {
+                    [CourseStatus.DRAFT]: [CourseStatus.PENDING],
+                    [CourseStatus.PENDING]: [CourseStatus.DRAFT, CourseStatus.PUBLISHED, CourseStatus.REJECTED],
+                    [CourseStatus.REJECTED]: [CourseStatus.DRAFT],
+                    [CourseStatus.PUBLISHED]: [CourseStatus.UNPUBLISHED],
+                    [CourseStatus.UNPUBLISHED]: [CourseStatus.PUBLISHED],
+                };
+
+                const allowed = ALLOWED_TRANSITIONS[course.status] || [];
+                if (!allowed.includes(updateCourseDto.status)) {
+                    throw new BadRequestException(
+                        `Không thể chuyển trạng thái từ "${course.status}" sang "${updateCourseDto.status}". Vui lòng sử dụng đúng quy trình duyệt khóa học.`
+                    );
+                }
+
+                if (updateCourseDto.status === CourseStatus.REJECTED) {
+                    if (!updateCourseDto.reason_rejected || updateCourseDto.reason_rejected.trim() === '') {
+                        throw new BadRequestException('Lý do từ chối không được để trống');
+                    }
+                }
+            }
+
+            //check exist category
+            if (updateCourseDto.categoryId !== undefined) {
+                const existCategory = await this.prisma.category.findFirst({
+                    where: {
+                        id: updateCourseDto.categoryId,
+                        status: true,
+                    },
+                    select: {
+                    id: true,
+                    parentId: true,
+                    _count: {
+                        select: {
+                            children: true,
+                        },
+                    },
+                },
+                });
+                if (!existCategory) {
+                    throw new BadRequestException('Danh mục không tồn tại hoặc đã bị vô hiệu hóa');
+                }
+                //check child
+                if (existCategory._count.children > 0) {
+                    throw new BadRequestException('Danh mục đã có danh mục con, không thể gán khóa học vào danh mục này');
+                }
             }
             const updateCourse = await this.prisma.course.update({
                 where: {
@@ -424,6 +533,15 @@ export class CoursesService {
                 },
                 include: { tags: true, courseDescription: true },
             })
+
+            // Thumbnail cũ bị thay -> xóa ảnh Cloudinary không còn được tham chiếu
+            if (
+                course.thumbnail_publicID &&
+                course.thumbnail_publicID !== updateCourseDto.thumbnail_publicID
+            ) {
+                await this.cleanupService.addCloudinaryCleanupJob([course.thumbnail_publicID]);
+            }
+
             return updateCourse
         } catch (error) {
             if (error instanceof NotFoundException) {
@@ -449,6 +567,24 @@ export class CoursesService {
             if (!course) {
                 throw new NotFoundException('Không tìm thấy khóa học')
             }
+
+            // Hard delete xóa luôn row section/lesson nên phải gom public_id TRƯỚC khi
+            // delete; worker xử lý các loại media khác sẽ không còn gì để query.
+            const lessons = await this.prisma.lesson.findMany({
+                where: { section: { courseId: id } },
+                select: { content: true },
+            });
+            const publicIds = new Set<string>();
+            if (course.thumbnail_publicID) {
+                publicIds.add(course.thumbnail_publicID);
+            }
+            for (const lesson of lessons) {
+                for (const publicId of extractPublicIdsFromHtml(lesson.content)) {
+                    publicIds.add(publicId);
+                }
+            }
+            await this.cleanupService.addCloudinaryCleanupJob([...publicIds]);
+
             const removeCourse = await this.prisma.course.delete({
                 where: {
                     id: id
@@ -466,185 +602,208 @@ export class CoursesService {
             throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
         }
     }
-    async softDelete(userId: string, id: string) {
+    async softDelete(userId: string, id: string, deletedReason?: string) {
         try {
+            console.log(deletedReason)
             const course = await this.prisma.course.findUnique({
-                where: {
-                    id: id
-                }
+                where: { id }
             })
-            if (!course) {
+            if (!course || course.deletedAt) {
                 throw new NotFoundException('Không tìm thấy khóa học')
             }
-            const isAdmin =
-                await this.authorizationService.hasRole(userId, 'ADMIN');
+
+            const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
 
             if (!isAdmin && course.instructorId !== userId) {
-
-                throw new ForbiddenException('Ban không có quyền xóa khóa học này');
+                throw new ForbiddenException('Bạn không có quyền xóa khóa học này');
             }
-            const softDeleteCourse = await this.prisma.course.update({
-                where: {
-                    id: id
-                },
-                data: {
-                    deletedAt: new Date()
+
+            if (!isAdmin) {
+                if (!([CourseStatus.DRAFT, CourseStatus.REJECTED] as CourseStatus[]).includes(course.status)) {
+                    throw new BadRequestException('Giảng viên chỉ có thể xóa khóa học ở trạng thái DRAFT hoặc REJECTED');
                 }
-            })
+            } else {
+                if (!deletedReason) {
+                    throw new BadRequestException('Lý do xóa không được để trống khi admin xóa');
+                }
+            }
+
+            const softDeleteCourse = await this.prisma.course.update({
+                where: { id },
+                data: {
+                    deletedAt: new Date(),
+                    ...(isAdmin ? { deletedById: userId, deletedReason } : {})
+                }
+            });
+
+            this.cleanupService.addCourseCleanupJob(id);
+
+            // Thumbnail thuộc về course: addCourseCleanupJob đã lo section/lesson con,
+            // thumbnail phải xóa riêng (không nằm trong handleCleanupSection).
+            if (course.thumbnail_publicID) {
+                this.cleanupService.addCloudinaryCleanupJob([course.thumbnail_publicID]);
+            }
+
             return {
                 id: softDeleteCourse.id,
                 title: softDeleteCourse.title
             }
         }
         catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
-            if (error instanceof ForbiddenException) {
+            if (error instanceof NotFoundException || error instanceof ForbiddenException || error instanceof BadRequestException) {
                 throw error;
             }
             throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
         }
     }
 
-    async changeStatus(userId: string, changeStatusDto: ChangeStatusDto) {
-        try {
-            const { id, status } = changeStatusDto;
-            const course = await this.prisma.course.findUnique({
-                where: {
-                    id: id
-                }
-            })
-            if (!course) {
-                throw new NotFoundException('Không tìm thấy khoá học')
-            }
-            const isAdmin =
-                await this.authorizationService.hasRole(userId, 'ADMIN');
+    async submitCourse(userId: string, submitDto: SubmitCourseDto) {
+        const { id } = submitDto;
+        const course = await this.prisma.course.findUnique({ where: { id } });
 
-            if (!isAdmin && course.instructorId !== userId) {
+        if (!course || course.deletedAt) throw new NotFoundException('Không tìm thấy khóa học');
+        if (course.instructorId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
+        if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(course.status)) {
+            throw new BadRequestException('Khóa học phải ở trạng thái DRAFT, REJECTED hoặc UNPUBLISHED mới có thể submit');
+        }
+        const category = await this.prisma.category.findFirst({
+            where: {
+                id: course.categoryId,
+                status: true,
+            },
+        });
 
-                throw new ForbiddenException('Ban không có quyền thay đổi trạng thái khóa học này');
-            }
-            const changeStatusCourse = await this.prisma.course.update({
-                where: {
-                    id: id
-                },
-                data: {
-                    status: status
-                }
-            })
-            return {
-                id: changeStatusCourse.id,
-                title: changeStatusCourse.title,
-            }
+        if (!category) {
+            throw new BadRequestException(
+                'Danh mục của khóa học không còn hoạt động',
+            );
         }
-        catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
-            if (error instanceof ForbiddenException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi thay đổi trạng thái');
-        }
+        return this.prisma.course.update({
+            where: { id },
+            data: { status: CourseStatus.PENDING, reason_rejected: null }
+        });
     }
 
-    async bulkStatus(userId: string, bulkStatusDto: BulkStatusDto) {
-        try {
-            const { ids, status } = bulkStatusDto;
-            const course = await this.prisma.course.findMany({
-                where: {
-                    id: {
-                        in: ids
-                    }
-                }
-            })
-            if (course.length === 0) {
-                throw new BadRequestException('Không tìm thấy khóa học nào để cập nhật');
-            }
-            const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
-            if (!isAdmin) {
-                const userCourses = await this.prisma.course.findMany({
-                    where: {
-                        id: {
-                            in: ids
-                        },
-                        instructorId: userId
-                    }
-                })
-                if (userCourses.length !== ids.length) {
-                    throw new ForbiddenException('Bạn không có quyền cập nhật trạng thái khóa học này');
-                }
-            }
-            const result = await this.prisma.course.updateMany({
-                where: {
-                    id: {
-                        in: ids
-                    }
-                },
-                data: {
-                    status: status
-                }
-            })
-            return {
-                count: result.count
-            }
-        } catch (error) {
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            if (error instanceof ForbiddenException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật trạng thái khoá học');
+    async approveCourse(userId: string, approveDto: ApproveCourseDto) {
+        const { id } = approveDto;
+        const course = await this.prisma.course.findUnique({ where: { id } });
+        if (!course || course.deletedAt)
+            throw new NotFoundException('Không tìm thấy khóa học');
+        if (course.status !== CourseStatus.PENDING)
+            throw new BadRequestException('Khóa học không ở trạng thái PENDING');
+        const category = await this.prisma.category.findFirst({
+            where: {
+                id: course.categoryId,
+                status: true,
+            },
+        });
+
+        if (!category) {
+            throw new BadRequestException(
+                'Danh mục của khóa học không còn hoạt động',
+            );
         }
+        return this.prisma.course.update({
+            where: { id },
+            data: {
+                status: CourseStatus.PUBLISHED,
+                approvedById: userId,
+                approvedAt: new Date()
+            }
+        });
+    }
+
+    async bulkApproveCourse(userId: string, bulkApproveDto: BulkApproveCourseDto) {
+        const { ids } = bulkApproveDto;
+        const courses = await this.prisma.course.findMany({
+            where: {
+                id: { in: ids },
+                deletedAt: null
+            }
+        });
+        if (courses.length !== ids.length)
+            throw new NotFoundException('Một số khóa học không tồn tại hoặc đã bị xóa');
+        for (const c of courses) {
+            if (c.status !== CourseStatus.PENDING)
+                throw new BadRequestException(`Khóa học ${c.title} không ở trạng thái PENDING`);
+        }
+        await this.prisma.course.updateMany({
+            where: { id: { in: ids } },
+            data: {
+                status: CourseStatus.PUBLISHED,
+                approvedById: userId,
+                approvedAt: new Date()
+            }
+        });
+        return { count: ids.length };
+    }
+
+    async rejectCourse(userId: string, rejectDto: RejectCourseDto) {
+        const { id, reason_rejected } = rejectDto;
+        const course = await this.prisma.course.findUnique({ where: { id } });
+        if (!course || course.deletedAt) throw new NotFoundException('Không tìm thấy khóa học');
+        if (course.status !== CourseStatus.PENDING) throw new BadRequestException('Khóa học không ở trạng thái PENDING');
+        return this.prisma.course.update({
+            where: { id },
+            data: { status: CourseStatus.REJECTED, reason_rejected }
+        });
+    }
+
+    async cancelReview(userId: string, cancelDto: SubmitCourseDto) {
+        const { id } = cancelDto;
+        const course = await this.prisma.course.findUnique({ where: { id } });
+        if (!course || course.deletedAt) throw new NotFoundException('Không tìm thấy khóa học');
+        if (course.instructorId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
+        if (course.status !== CourseStatus.PENDING) throw new BadRequestException('Chỉ có thể hủy gửi duyệt khi khóa học đang ở trạng thái Chờ duyệt');
+        return this.prisma.course.update({
+            where: { id },
+            data: { status: CourseStatus.DRAFT }
+        });
+    }
+
+    async unpublishCourse(userId: string, unpublishDto: UnpublishCourseDto) {
+        const { id } = unpublishDto;
+        const course = await this.prisma.course.findUnique({ where: { id } });
+        if (!course || course.deletedAt) throw new NotFoundException('Không tìm thấy khóa học');
+        if (course.instructorId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
+        if (course.status !== CourseStatus.PUBLISHED) throw new BadRequestException('Khóa học phải ở trạng thái PUBLISHED mới có thể unpublish');
+        return this.prisma.course.update({
+            where: { id },
+            data: { status: CourseStatus.UNPUBLISHED }
+        });
     }
 
     async bulkDelete(userId: string, bulkDeleteDto: BulkDeleteDto) {
         try {
             const { ids } = bulkDeleteDto;
-            const course = await this.prisma.course.findMany({
-                where: {
-                    id: {
-                        in: ids
-                    }
-                }
+            const courses = await this.prisma.course.findMany({
+                where: { id: { in: ids } }
             })
-            if (course.length === 0) {
+            if (courses.length === 0) {
                 throw new BadRequestException('Không tìm thấy khóa học nào để xóa');
             }
-            const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
-            if (!isAdmin) {
-                const userCourses = await this.prisma.course.findMany({
-                    where: {
-                        id: {
-                            in: ids
-                        },
-                        instructorId: userId
-                    }
-                })
-                if (userCourses.length !== ids.length) {
-                    throw new ForbiddenException('Bạn không có quyền xóa khóa học này');
+
+            for (const course of courses) {
+                if (course.instructorId !== userId) {
+                    throw new ForbiddenException('Bạn không có quyền xóa khóa học trong danh sách này');
+                }
+                if (!([CourseStatus.DRAFT, CourseStatus.REJECTED] as CourseStatus[]).includes(course.status)) {
+                    throw new BadRequestException(`Khóa học ${course.title} không ở trạng thái DRAFT hoặc REJECTED`);
                 }
             }
+
             const result = await this.prisma.course.updateMany({
-                where: {
-                    id: {
-                        in: ids
-                    }
-                },
-                data: {
-                    deletedAt: new Date()
-                }
-            })
-            return {
-                count: result.count
+                where: { id: { in: ids } },
+                data: { deletedAt: new Date() }
+            });
+
+            for (const id of ids) {
+                this.cleanupService.addCourseCleanupJob(id);
             }
+
+            return { count: result.count }
         } catch (error) {
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            if (error instanceof ForbiddenException) {
+            if (error instanceof BadRequestException || error instanceof ForbiddenException) {
                 throw error;
             }
             throw new InternalServerErrorException('Có lỗi xảy ra khi xóa khoá học');
@@ -658,7 +817,7 @@ export class CoursesService {
             }
             const featuredCourses = await this.prisma.course.findMany({
                 where: {
-                    status: true,
+                    status: CourseStatus.PUBLISHED,
                     deletedAt: null
                 },
                 orderBy: {
@@ -716,6 +875,7 @@ export class CoursesService {
             rating?: number;
             courseType?: string | string[];
             tag?: number | number[];
+            category?: number | number[];
         }
     ) {
         const allowedFields = ['title', 'createdAt', 'studentCount', 'averageRating', 'price', 'discount'];
@@ -725,11 +885,12 @@ export class CoursesService {
         const levelValues = normalizeStringArray(filters?.level).map((item) => item.toUpperCase());
         const courseTypeValues = normalizeStringArray(filters?.courseType).map((item) => item.toUpperCase());
         const tagValues = normalizeNumberArray(filters?.tag);
+        const categoryValues = normalizeNumberArray(filters?.category);
         const parsedRating = filters?.rating ?? null;
 
 
         const baseWhere: any = {
-            status: true,
+            status: CourseStatus.PUBLISHED,
             deletedAt: null,
         };
         const whereCondition: any = {
@@ -759,6 +920,24 @@ export class CoursesService {
                         id: {
                             in: tagValues,
                         },
+                    },
+                },
+            }),
+            ...(categoryValues.length > 0 && {
+                category: {
+                    some: {
+                        OR: [
+                            {
+                                id: {
+                                    in: categoryValues,
+                                },
+                            },
+                            {
+                                parentId: {
+                                    in: categoryValues,
+                                },
+                            },
+                        ],
                     },
                 },
             }),
@@ -799,6 +978,24 @@ export class CoursesService {
                     },
                 },
             }),
+            ...(categoryValues.length > 0 && {
+                category: {
+                    some: {
+                        OR: [
+                            {
+                                id: {
+                                    in: categoryValues,
+                                },
+                            },
+                            {
+                                parentId: {
+                                    in: categoryValues,
+                                },
+                            },
+                        ],
+                    },
+                },
+            }),
         };
 
         const courseTypeWhere = {
@@ -826,6 +1023,24 @@ export class CoursesService {
                     },
                 },
             }),
+            ...(categoryValues.length > 0 && {
+                category: {
+                    some: {
+                        OR: [
+                            {
+                                id: {
+                                    in: categoryValues,
+                                },
+                            },
+                            {
+                                parentId: {
+                                    in: categoryValues,
+                                },
+                            },
+                        ],
+                    },
+                },
+            }),
         };
 
         const ratingWhere = {
@@ -849,6 +1064,24 @@ export class CoursesService {
                         id: {
                             in: tagValues,
                         },
+                    },
+                },
+            }),
+            ...(categoryValues.length > 0 && {
+                category: {
+                    some: {
+                        OR: [
+                            {
+                                id: {
+                                    in: categoryValues,
+                                },
+                            },
+                            {
+                                parentId: {
+                                    in: categoryValues,
+                                },
+                            },
+                        ],
                     },
                 },
             }),
@@ -920,6 +1153,11 @@ export class CoursesService {
                         },
                     },
                     tags: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                    category: {
                         select: {
                             name: true,
                         },
@@ -1008,45 +1246,47 @@ export class CoursesService {
     }
 
     async findRelatedCoursesBySlug(slug: string) {
-        
+
         const course = await this.prisma.course.findFirst({
             where: {
                 slug,
-                status: true,
+                status: CourseStatus.PUBLISHED,
                 deletedAt: null,
             },
             select: {
                 id: true,
+                categoryId: true,
                 courseType: true,
-                tags: true,
+                tags: {
+                    select: {
+                        id: true,
+                    },
+                },
             },
         });
 
         if (!course) {
             throw new NotFoundException('Không tìm thấy khóa học');
         }
-        
+
         const relatedCourses = await this.prisma.course.findMany({
             where: {
                 id: {
                     not: course.id,
                 },
+                status: CourseStatus.PUBLISHED,
                 deletedAt: null,
-                status: true,
-                AND: [
-                    {
-                        courseType: course.courseType,
-                    },
-                    {
-                        tags: {
-                            some: {
-                                id: {
-                                    in: course.tags.map((tag) => tag.id),
-                                },
+                categoryId: course.categoryId,
+                courseType: course.courseType,
+                ...(course.tags.length > 0 && {
+                    tags: {
+                        some: {
+                            id: {
+                                in: course.tags.map((tag) => tag.id),
                             },
                         },
                     },
-                ],
+                }),
             },
             include: {
                 instructor: {
@@ -1055,12 +1295,28 @@ export class CoursesService {
                         avatar: true,
                     },
                 },
+                category: {
+                    select: {
+                        id: true,
+                        name: true,
+                        slug: true,
+                    },
+                },
                 tags: {
                     select: {
+                        id: true,
                         name: true,
                     },
                 },
             },
+            orderBy: [
+                {
+                    averageRating: 'desc',
+                },
+                {
+                    studentCount: 'desc',
+                },
+            ],
             take: 4,
         });
         return relatedCourses;

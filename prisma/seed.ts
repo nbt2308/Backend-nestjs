@@ -36,6 +36,8 @@ const INSTRUCTOR_PERMISSIONS = [
     PERMISSIONS.COURSE_CREATE,
     PERMISSIONS.COURSE_UPDATE,
     PERMISSIONS.COURSE_DELETE,
+    PERMISSIONS.COURSE_SUBMIT,
+    PERMISSIONS.COURSE_UNPUBLISH,
 
     // Section
     PERMISSIONS.SECTION_READ,
@@ -51,6 +53,9 @@ const INSTRUCTOR_PERMISSIONS = [
 
     // Tag
     PERMISSIONS.TAG_READ,
+    
+    // Category
+    PERMISSIONS.CATEGORY_READ,
 
     // Enrollment
     PERMISSIONS.ENROLLMENT_READ,
@@ -95,6 +100,9 @@ const STUDENT_PERMISSIONS = [
 
     // Tag
     PERMISSIONS.TAG_READ,
+
+    // Category
+    PERMISSIONS.CATEGORY_READ,
 
     // Enrollment
     PERMISSIONS.ENROLLMENT_READ,
@@ -174,6 +182,18 @@ const seedUsers = [
 
 
 // ============================================================
+// SEED CATEGORIES
+// ============================================================
+
+const seedCategories = [
+    { id: 1, name: 'Lập trình Web', slug: 'lap-trinh-web', description: 'Các khóa học về lập trình Web', parentId: null },
+    { id: 2, name: 'Frontend', slug: 'frontend', description: 'Lập trình giao diện Frontend', parentId: 1 },
+    { id: 3, name: 'Backend', slug: 'backend', description: 'Lập trình hệ thống Backend', parentId: 1 },
+    { id: 4, name: 'Trí tuệ nhân tạo', slug: 'tri-tue-nhan-tao', description: 'AI & Machine Learning', parentId: null },
+];
+
+
+// ============================================================
 // MAIN
 // ============================================================
 
@@ -232,6 +252,10 @@ async function main() {
         "course.create": { label: "Tạo Course", desc: "Thêm khoá học mới" },
         "course.update": { label: "Sửa Course", desc: "Cập nhật khoá học" },
         "course.delete": { label: "Xoá Course", desc: "Xoá khoá học" },
+        "course.submit": { label: "Nộp Course", desc: "Nộp khoá học" },
+        "course.approve": { label: "Duyệt Course", desc: "Duyệt khoá học" },
+        "course.reject": { label: "Từ chối Course", desc: "Từ chối khoá học" },
+        "course.unpublish": { label: "Ngưng bán Course", desc: "Huỷ xuất bản khoá học" },
         "section.read": { label: "Xem Section", desc: "Truy cập chương học" },
         "section.create": { label: "Tạo Section", desc: "Thêm chương học mới" },
         "section.update": { label: "Sửa Section", desc: "Cập nhật chương học" },
@@ -244,6 +268,10 @@ async function main() {
         "tag.create": { label: "Tạo Tag", desc: "Thêm nhãn mới" },
         "tag.update": { label: "Sửa Tag", desc: "Cập nhật nhãn" },
         "tag.delete": { label: "Xoá Tag", desc: "Xoá nhãn" },
+        "category.read": { label: "Xem Category", desc: "Truy cập quản lý danh mục" },
+        "category.create": { label: "Tạo Category", desc: "Thêm danh mục mới" },
+        "category.update": { label: "Sửa Category", desc: "Cập nhật danh mục" },
+        "category.delete": { label: "Xoá Category", desc: "Xoá danh mục" },
         "enrollment.read": { label: "Xem ghi danh", desc: "Truy cập danh sách ghi danh" },
         "enrollment.create": { label: "Tạo ghi danh", desc: "Ghi danh học viên" },
         "enrollment.update": { label: "Sửa ghi danh", desc: "Cập nhật ghi danh" },
@@ -482,7 +510,34 @@ async function main() {
 
 
     // ========================================================
-    // 6. SUMMARY
+    // 6. SEED CATEGORIES
+    // ========================================================
+
+    console.log('\n📌 Seeding categories...');
+
+    for (const cat of seedCategories) {
+        await prisma.category.upsert({
+            where: { id: cat.id },
+            update: {
+                name: cat.name,
+                slug: cat.slug,
+                description: cat.description,
+                parentId: cat.parentId,
+            },
+            create: {
+                id: cat.id,
+                name: cat.name,
+                slug: cat.slug,
+                description: cat.description,
+                parentId: cat.parentId,
+            }
+        });
+        console.log(`   ✓ Category: ${cat.name}`);
+    }
+
+
+    // ========================================================
+    // 7. SUMMARY
     // ========================================================
 
     console.log('\n========================================');

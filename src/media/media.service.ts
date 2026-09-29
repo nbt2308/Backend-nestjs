@@ -39,9 +39,13 @@ export class MediaService {
 
     async deleteImage(publicId: string) {
         try {
-            return await cloudinary.uploader.destroy(publicId);
-        } catch (error) {
+            return await cloudinary.uploader.destroy(publicId, {
+                resource_type: 'image',
+            });
+        } catch (error: any) {
             console.error('Lỗi xóa ảnh Cloudinary:', error);
+            // Ném lỗi để BullMQ retry thay vì coi job là thành công
+            throw new Error(error?.message || 'Lỗi xóa ảnh Cloudinary');
         }
     }
 }

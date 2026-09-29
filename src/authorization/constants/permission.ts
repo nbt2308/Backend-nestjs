@@ -31,7 +31,10 @@ export const PERMISSIONS = {
     COURSE_CREATE: 'course.create',
     COURSE_UPDATE: 'course.update',
     COURSE_DELETE: 'course.delete',
-
+    COURSE_SUBMIT: 'course.submit',
+    COURSE_APPROVE: 'course.approve',
+    COURSE_REJECT: 'course.reject',
+    COURSE_UNPUBLISH: 'course.unpublish',
     // Section permissions
     SECTION_READ: 'section.read',
     SECTION_CREATE: 'section.create',
@@ -49,6 +52,12 @@ export const PERMISSIONS = {
     TAG_CREATE: 'tag.create',
     TAG_UPDATE: 'tag.update',
     TAG_DELETE: 'tag.delete',
+
+    // Category permissions
+    CATEGORY_READ: 'category.read',
+    CATEGORY_CREATE: 'category.create',
+    CATEGORY_UPDATE: 'category.update',
+    CATEGORY_DELETE: 'category.delete',
 
     // Enrollment permissions (Ghi danh học viên)
     ENROLLMENT_READ: 'enrollment.read',

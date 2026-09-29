@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Req, Query, DefaultValuePipe, ParseIntPipe, HttpCode, HttpStatus } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
-import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateCourseDto } from './dto/update-course.dto';
+import { BulkDeleteDto, UpdateCourseDto, SubmitCourseDto, ApproveCourseDto, BulkApproveCourseDto, RejectCourseDto, UnpublishCourseDto, AdminDeleteCourseDto } from './dto/update-course.dto';
 import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 import { QueryCourseDto } from './dto/query-course.dto';
 import { Public } from '@/decorator/public.decorator';
@@ -89,14 +89,52 @@ export class CoursesController {
         return result;
     }
 
-    @Post('change-status')
-    @RequirePermissions(
-        PERMISSIONS.COURSE_UPDATE,
-    )
-    @ResponseMessage('Cập nhật trạng thái khoá học thành công')
+    @Post('submit')
+    @RequirePermissions(PERMISSIONS.COURSE_SUBMIT)
+    @ResponseMessage('Gửi duyệt khóa học thành công')
     @HttpCode(HttpStatus.OK)
-    async updateStatus(@CurrentUser() user: AuthUser, @Body() changeStatusDto: ChangeStatusDto) {
-        return await this.coursesService.changeStatus(user.id, changeStatusDto);
+    async submitCourse(@CurrentUser() user: AuthUser, @Body() submitDto: SubmitCourseDto) {
+        return await this.coursesService.submitCourse(user.id, submitDto);
+    }
+
+    @Post('approve')
+    @RequirePermissions(PERMISSIONS.COURSE_APPROVE)
+    @ResponseMessage('Duyệt khóa học thành công')
+    @HttpCode(HttpStatus.OK)
+    async approveCourse(@CurrentUser() user: AuthUser, @Body() approveDto: ApproveCourseDto) {
+        return await this.coursesService.approveCourse(user.id, approveDto);
+    }
+
+    @Post('bulk-approve')
+    @RequirePermissions(PERMISSIONS.COURSE_APPROVE)
+    @ResponseMessage('Duyệt hàng loạt khóa học thành công')
+    @HttpCode(HttpStatus.OK)
+    async bulkApproveCourse(@CurrentUser() user: AuthUser, @Body() bulkApproveDto: BulkApproveCourseDto) {
+        return await this.coursesService.bulkApproveCourse(user.id, bulkApproveDto);
+    }
+
+    @Post('reject')
+    @RequirePermissions(PERMISSIONS.COURSE_REJECT)
+    @ResponseMessage('Từ chối khóa học thành công')
+    @HttpCode(HttpStatus.OK)
+    async rejectCourse(@CurrentUser() user: AuthUser, @Body() rejectDto: RejectCourseDto) {
+        return await this.coursesService.rejectCourse(user.id, rejectDto);
+    }
+
+    @Post('unpublish')
+    @RequirePermissions(PERMISSIONS.COURSE_UNPUBLISH)
+    @ResponseMessage('Ngưng bán khóa học thành công')
+    @HttpCode(HttpStatus.OK)
+    async unpublishCourse(@CurrentUser() user: AuthUser, @Body() unpublishDto: UnpublishCourseDto) {
+        return await this.coursesService.unpublishCourse(user.id, unpublishDto);
+    }
+
+    @Post('cancel-review')
+    @RequirePermissions(PERMISSIONS.COURSE_SUBMIT)
+    @ResponseMessage('Hủy gửi duyệt khóa học thành công')
+    @HttpCode(HttpStatus.OK)
+    async cancelReview(@CurrentUser() user: AuthUser, @Body() cancelDto: SubmitCourseDto) {
+        return await this.coursesService.cancelReview(user.id, cancelDto);
     }
 
     @Delete(':id')
@@ -113,8 +151,8 @@ export class CoursesController {
         PERMISSIONS.COURSE_DELETE,
     )
     @ResponseMessage('Xóa khóa học thành công')
-    async softDelete(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-        return await this.coursesService.softDelete(user.id, id);
+    async softDelete(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body?: AdminDeleteCourseDto) {
+        return await this.coursesService.softDelete(user.id, id, body?.deletedReason);
     }
 
     @Post('bulk-delete')
@@ -127,15 +165,6 @@ export class CoursesController {
         return await this.coursesService.bulkDelete(user.id, bulkDeleteDto);
     }
 
-    @Post('bulk-update-status')
-    @RequirePermissions(
-        PERMISSIONS.COURSE_UPDATE,
-    )
-    @ResponseMessage('Cập nhật trạng thái khoá học thành công')
-    @HttpCode(HttpStatus.OK)
-    async bulkStatus(@CurrentUser() user: AuthUser, @Body() bulkStatusDto: BulkStatusDto) {
-        return await this.coursesService.bulkStatus(user.id, bulkStatusDto);
-    }
 
 
 

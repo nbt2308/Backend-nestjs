@@ -3,9 +3,10 @@ import { SectionsService } from './sections.service';
 import { SectionsController } from './sections.controller';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { AuthorizationModule } from '@/authorization/authorization.module';
+import { CleanupModule } from '@/cleanup/cleanup.module';
 
 @Module({
-  imports: [PrismaModule, AuthorizationModule],
+  imports: [PrismaModule, AuthorizationModule, CleanupModule],
   controllers: [SectionsController],
   providers: [SectionsService],
   exports: [SectionsService]

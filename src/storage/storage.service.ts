@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
   GetObjectAclCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -61,7 +62,7 @@ export class StorageService {
 
   async getSignedUrl(key: string,expiresIn = 3600): Promise<string> {
     try {
-      const command = new GetObjectAclCommand({
+      const command = new GetObjectCommand({
         Bucket: this.bucketName,
         Key: key,
       });

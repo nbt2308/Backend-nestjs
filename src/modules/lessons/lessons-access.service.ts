@@ -5,10 +5,11 @@ import {
 } from '@nestjs/common';
 import { EnrollmentStatus } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { AuthorizationService } from '@/authorization/authorization.service';
 
 @Injectable()
 export class LessonAccessService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService, private readonly authorizationService: AuthorizationService) { }
 
   async getLessonForAccess(lessonId: number) {
     const lesson = await this.prisma.lesson.findFirst({
@@ -25,7 +26,6 @@ export class LessonAccessService {
       select: {
         id: true,
         title: true,
-        videoUrl: true,
         videoId: true,
         duration: true,
         content: true,
@@ -126,12 +126,16 @@ export class LessonAccessService {
     lessonId: number,
   ) {
     const lesson = await this.getLessonForAccess(lessonId);
-
+    const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
+    if (isAdmin) {
+      return lesson;
+    }
     if (lesson.isPreview) {
       throw new ForbiddenException(
         'Không thể tải tài nguyên của bài giảng cho phép xem trước',
       );
     }
+
 
     const enrollment = await this.prisma.enrollment.findUnique({
       where: {
