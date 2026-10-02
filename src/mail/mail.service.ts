@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { getVerifyEmailTemplate } from './templates/verfify-email.template';
 import { ConfigService } from '@nestjs/config';
 import { getForgotPasswordOTPEmailTemplate } from './templates/forgot-password.template';
+import { getCourseRejectionEmailTemplate } from './templates/reject-course.template';
 
 @Injectable()
 export class MailService {
@@ -35,6 +36,28 @@ export class MailService {
                 to: [userEmail],
                 subject: `${otpCode} là mã đặt lại mật khẩu của bạn`,
                 html: getForgotPasswordOTPEmailTemplate(userName, otpCode),
+            });
+
+            return data;
+        } catch (error) {
+            console.error('Lỗi khi gửi mail:', error);
+            throw new InternalServerErrorException('Không thể gửi email lúc này');
+        }
+    }
+
+    async sendCourseRejectionEmail(
+        instructorEmail: string,
+        instructorName: string,
+        courseTitle: string,
+        rejectionReason: string,
+        editCourseUrl: string
+    ) {
+        try {
+            const data = await this.resend.emails.send({
+                from: process.env.MAIL_FROM || '',
+                to: [instructorEmail],
+                subject: `Khóa học "${courseTitle}" của bạn đã bị từ chối`,
+                html: getCourseRejectionEmailTemplate(instructorName, courseTitle, rejectionReason, editCourseUrl),
             });
 
             return data;

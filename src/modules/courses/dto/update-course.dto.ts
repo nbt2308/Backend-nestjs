@@ -4,10 +4,7 @@ import { ArrayNotEmpty, IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsSt
 import { CourseStatus } from '@prisma/client';
 
 export class UpdateCourseDto extends PartialType(CreateCourseDto) {
-    @IsOptional()
-    @IsEnum(CourseStatus, { message: 'Trạng thái không hợp lệ' })
-    status?: CourseStatus;
-
+   
     @IsOptional()
     @IsString({ message: 'Lý do từ chối phải là chuỗi' })
     reason_rejected?: string;
@@ -40,6 +37,10 @@ export class RejectCourseDto {
     @IsString({ message: 'Lý do từ chối phải là chuỗi' })
     @IsNotEmpty({ message: 'Lý do từ chối không được để trống' })
     reason_rejected!: string;
+
+    @IsOptional()
+    @IsBoolean({ message: 'Trường gửi email phải là boolean' })
+    sendEmail?: boolean;
 }
 
 export class UnpublishCourseDto {

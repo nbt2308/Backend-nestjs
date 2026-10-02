@@ -4,6 +4,7 @@ import {
   DeleteObjectCommand,
   GetObjectAclCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -71,7 +72,24 @@ export class StorageService {
         expiresIn,
       });
     } catch (error) {
-      throw new InternalServerErrorException('Failed to generate signed URL');
+      throw new InternalServerErrorException('Tạo URL thất bại');
+    }
+  }
+
+  /**
+   * Kiểm tra file có tồn tại trên R2 hay không (không download nội dung).
+   * Trả về true nếu tồn tại, false nếu không.
+   */
+  async headObject(key: string): Promise<boolean> {
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+      await this.s3Client.send(command);
+      return true;
+    } catch {
+      return false;
     }
   }
 }

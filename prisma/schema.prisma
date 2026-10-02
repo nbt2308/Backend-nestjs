@@ -183,6 +183,7 @@ model Course {
   reason_rejected    String?
   approvedAt         DateTime?
   approvedById       String?
+  submittedAt        DateTime?
   price              Decimal            @default(0) @db.Decimal(12, 2)
   discount           Decimal            @default(0) @db.Decimal(12, 2)
   categoryId         Int

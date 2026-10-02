@@ -48,4 +48,54 @@ export class MediaService {
             throw new Error(error?.message || 'Lỗi xóa ảnh Cloudinary');
         }
     }
+
+    /**
+     * Kiểm tra 1 ảnh có tồn tại trên Cloudinary hay không.
+     * Trả về true nếu tồn tại, false nếu không.
+     */
+    async checkImageExists(publicId: string): Promise<boolean> {
+        try {
+            await cloudinary.api.resource(publicId, { resource_type: 'image' });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Kiểm tra hàng loạt ảnh trên Cloudinary.
+     * Trả về Set chứa các publicId tồn tại.
+     *
+     * Lưu ý: Cloudinary Admin API `resources_by_ids` có giới hạn 100 ids/request.
+     */
+    async checkImagesExist(publicIds: string[]): Promise<Set<string>> {
+        const existingIds = new Set<string>();
+        const BATCH_SIZE = 100;
+
+        for (let i = 0; i < publicIds.length; i += BATCH_SIZE) {
+            const batch = publicIds.slice(i, i + BATCH_SIZE);
+
+            try {
+                const result = await cloudinary.api.resources_by_ids(batch, {
+                    resource_type: 'image',
+                });
+
+                for (const resource of result.resources ?? []) {
+                    if (resource.public_id) {
+                        existingIds.add(resource.public_id);
+                    }
+                }
+            } catch {
+                // Nếu batch check lỗi, fallback từng ảnh một
+                for (const publicId of batch) {
+                    const exists = await this.checkImageExists(publicId);
+                    if (exists) {
+                        existingIds.add(publicId);
+                    }
+                }
+            }
+        }
+
+        return existingIds;
+    }
 }

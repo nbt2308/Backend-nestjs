@@ -432,4 +432,46 @@ export class YoutubeService {
             throw new InternalServerErrorException('Không thể lấy dữ liệu từ YouTube API');
         }
     }
+
+    /**
+     * Kiểm tra hàng loạt video có tồn tại trên YouTube hay không.
+     * Batch gọi API videos.list — YouTube cho phép tối đa 50 ids/request.
+     * Trả về Map<videoId, exists>.
+     */
+    async checkVideosExist(videoIds: string[]): Promise<Map<string, boolean>> {
+        const result = new Map<string, boolean>(); //trả về result { 'id_1': true, 'id_2': false }
+
+        if (videoIds.length === 0) return result;
+
+        // Mặc định tất cả false
+        for (const id of videoIds) {
+            result.set(id, false);
+        }
+
+        try {
+            const auth = await this.getAuthenticatedClient();
+
+            const youtube = google.youtube({
+                version: 'v3',
+                auth,
+            });
+
+            // cost: 1 unit cho videos.list (bất kể số lượng ids)
+            const response = await youtube.videos.list({
+                part: ['id'],
+                id: videoIds,
+            });
+
+            for (const item of response.data.items ?? []) {
+                if (item.id) {
+                    result.set(item.id, true);
+                }
+            }
+        } catch (error) {
+            // Ném lỗi để caller xử lý (EXTERNAL_CHECK_FAILED)
+            throw error;
+        }
+
+        return result;
+    }
 }

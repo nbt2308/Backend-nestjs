@@ -10,12 +10,15 @@ import { PERMISSIONS } from '@/authorization/constants/permission';
 import { CurrentUser } from '@/decorator/current-user.decorator';
 import { User } from '@prisma/client';
 import type { AuthUser } from '@/auth/interfaces/auth-user.interface';
-
+import { CourseValidationService } from '@/course-validation/course-validation.service';
 
 
 @Controller('courses')
 export class CoursesController {
-    constructor(private readonly coursesService: CoursesService) { }
+    constructor(
+        private readonly coursesService: CoursesService,
+        private readonly courseValidationService: CourseValidationService
+    ) { }
 
     @Public()
     @ResponseMessage('Lấy danh sách khóa học thành công')
@@ -167,6 +170,37 @@ export class CoursesController {
 
 
 
+    @Get('moderation/kpis')
+    @RequirePermissions(PERMISSIONS.COURSE_APPROVE)
+    @ResponseMessage('Lấy thống kê kiểm duyệt thành công')
+    async getModerationKpis() {
+        return this.coursesService.getModerationKpis();
+    }
+
+    @Get('moderation/list')
+    @RequirePermissions(PERMISSIONS.COURSE_APPROVE)
+    @ResponseMessage('Lấy danh sách khóa học chờ duyệt thành công')
+    async getModerationCourses(
+        @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+        @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+        @Query('status') status?: string,
+    ) {
+        return this.coursesService.getModerationList(page, limit, status as any);
+    }
+
+    @Get('moderation/:id/review')
+    @RequirePermissions(PERMISSIONS.COURSE_APPROVE)
+    @ResponseMessage('Lấy thông tin kiểm duyệt khóa học thành công')
+    async getModerationReview(@Param('id') id: string) {
+        return this.coursesService.getModerationReview(id);
+    }
+
+    @Get(':id/validation')
+    @RequirePermissions(PERMISSIONS.COURSE_APPROVE)
+    @ResponseMessage('Lấy thông tin kiểm duyệt khóa học thành công')
+    async getCourseValidation(@Param('id') id: string) {
+        return this.courseValidationService.validateCourse(id);
+    }
 
     @Get(':slug/preview/:lessonId')
     @Public()

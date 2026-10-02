@@ -162,6 +162,9 @@ export class LessonsService {
     // kiểm tra quyền truy cập tài nguyên
     await this.lessonAccessService.assertCanDownloadResource(userId, lessonId);
 
+    
+
+    //check file exist in db
     const resource = await this.prisma.lessonResource.findFirst({
       where: {
         id: resourceId,
@@ -177,6 +180,12 @@ export class LessonsService {
     });
 
     if (!resource) {
+      throw new NotFoundException('Tài nguyên không tồn tại');
+    }
+
+    //check file exist on R2
+    const fileExist = await this.storageService.headObject(resource.key);
+    if (!fileExist) {
       throw new NotFoundException('Tài nguyên không tồn tại');
     }
 
