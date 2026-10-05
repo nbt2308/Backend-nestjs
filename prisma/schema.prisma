@@ -50,8 +50,9 @@ model User {
   roles              UserRole[]
   wishlists          Wishlist[]
   interactions       Interaction[]
-  approvedCourses    Course[]           @relation("CourseApprovedBy")
-  deletedCourses     Course[]           @relation("CourseDeletedBy")
+  approvedCourses    Course[]         @relation("CourseApprovedBy")
+  deletedCourses     Course[]         @relation("CourseDeletedBy")
+
   @@index([status])
   @@index([isActive])
   @@index([email])
@@ -240,14 +241,20 @@ model Enrollment {
   id        String           @id @default(uuid())
   userId    String
   courseId  String
+  orderId   Int?
   status    EnrollmentStatus @default(ENROLLED)
   progress  Float            @default(0)
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
-  course    Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id])
 
   @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([orderId])
+  @@index([userId])
 }
 
 model Section {
@@ -329,26 +336,102 @@ model Wishlist {
 }
 
 model Order {
-  id          Int         @id @default(autoincrement())
-  orderNumber String      @unique
-  userId      String
-  totalAmount Decimal     @db.Decimal(12, 2)
-  status      OrderStatus @default(PENDING)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  user        User        @relation(fields: [userId], references: [id])
+  id             Int         @id @default(autoincrement())
+  orderNumber    String      @unique
+  userId         String
+  totalAmount    Decimal     @db.Decimal(12, 2)
+  discountAmount Decimal     @db.Decimal(12, 2)
+  subtotal       Decimal     @db.Decimal(12, 2)
+  currency       String      @default("VND")
+  status         OrderStatus @default(PENDING)
+  expiresAt      DateTime?
+  paidAt         DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id])
   orderItems  OrderItem[]
+  payment     Payment[]
+  enrollments Enrollment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
 }
 
 model OrderItem {
-  id        Int      @id @default(autoincrement())
-  orderId   Int
-  courseId  String
-  price     Decimal  @db.Decimal(12, 2)
+  id             Int      @id @default(autoincrement())
+  orderId        Int
+  courseId       String
+  originalPrice  Decimal  @db.Decimal(12, 2)
+  discountAmount Decimal  @db.Decimal(12, 2)
+  finalPrice     Decimal  @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, courseId])
+  @@index([courseId])
+}
+
+model Payment {
+  id       Int             @id @default(autoincrement())
+  orderId  Int
+  provider PaymentProvider
+  method   PaymentMethod
+  status   PaymentStatus   @default(PENDING)
+  amount   Decimal         @db.Decimal(12, 2)
+  currency String          @default("VND")
+
+  paymentCode       String  @unique
+  providerPaymentId String?
+  checkoutUrl       String?
+  qrCodeUrl         String?
+
+  expiresAt     DateTime?
+  paidAt        DateTime?
+  failureReason String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  course    Course   @relation(fields: [courseId], references: [id])
-  order     Order    @relation(fields: [orderId], references: [id])
+
+  order        Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  transactions PaymentTransaction[]
+
+  @@index([orderId])
+  @@index([status])
+  @@index([provider])
+  @@index([expiresAt])
+}
+
+model PaymentTransaction {
+  id        Int @id @default(autoincrement())
+  paymentId Int
+
+  provider              PaymentProvider
+  providerTransactionId String
+  referenceCode         String?
+
+  amount          Decimal   @db.Decimal(12, 2)
+  transferType    String?
+  transactionDate DateTime?
+  content         String?
+
+  rawPayload Json?
+
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerTransactionId])
+  @@index([paymentId])
+  @@index([referenceCode])
+  @@index([transactionDate])
 }
 
 model Post {
@@ -406,8 +489,28 @@ model PostComment {
 
 enum OrderStatus {
   PENDING
-  COMPLETED
+  PAID
+  EXPIRED
   CANCELLED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  SEPAY
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  VIETQR
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
 }
 
 enum CourseType {

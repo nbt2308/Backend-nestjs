@@ -34,6 +34,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { VideoUploadModule } from './video/video-upload.module';
 import { CleanupModule } from './cleanup/cleanup.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { PaymentModule } from './modules/payment/payment.module';
 @Module({
     imports: [
         
@@ -64,6 +65,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
         VideoUploadModule,
         CleanupModule,
         CategoriesModule,
+        PaymentModule,
     ],
     controllers: [AppController],
     providers: [AppService,
