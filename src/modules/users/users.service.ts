@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -155,7 +155,7 @@ export class UsersService {
         return { users: normalizedUsers, totalItems, totalPages };
     }
 
-    async findAll(){
+    async findAll() {
         const users = await this.prisma.user.findMany({
             where: {
                 deletedAt: null
@@ -207,7 +207,7 @@ export class UsersService {
                         },
                     },
                     status: true,
-                    isActive:true,
+                    isActive: true,
                     deletedAt: null,
                 },
                 select: {
@@ -574,12 +574,12 @@ export class UsersService {
             //check verify token expired
             const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(dayjs());
             if (!user.verifyTokenExpired || isVerifyTokenExpired) {
-                throw new BadRequestException('Verify token đã hết hạn')
+                throw new UnauthorizedException('Verify token đã hết hạn')
             }
             //check code id expired
             const isCodeExpired = dayjs(user.codeExpired).isBefore(dayjs());
             if (!user.codeExpired || isCodeExpired) {
-                throw new BadRequestException('Mã xác thực đã hết hạn')
+                throw new UnauthorizedException('Mã xác thực đã hết hạn')
             }
             const updateUser = await this.prisma.user.update({
                 where: {
@@ -604,6 +604,9 @@ export class UsersService {
             if (error instanceof BadRequestException) {
                 throw error;
             }
+            if (error instanceof UnauthorizedException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Có lỗi xảy ra khi xác thực');
         }
     }
@@ -624,14 +627,22 @@ export class UsersService {
             //check verify token expired
             const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(dayjs());
             if (!user.verifyTokenExpired || isVerifyTokenExpired) {
-                throw new BadRequestException('Verify token đã hết hạn')
+                throw new UnauthorizedException('Verify token đã hết hạn, vui lòng đăng nhập lại để xác thực tài khoản')
             }
 
-            if (user.codeExpired && now - user.codeExpired.getTime() < requestLimitMs) {
-                const remainMs = requestLimitMs - (now - user.codeExpired.getTime());
-                const remainMinutes = Math.ceil(remainMs / 60000);
-                throw new BadRequestException(`Vui lòng chờ ${remainMinutes} phút để gửi lại mã`);
+
+            const codeExpiredMs = Number(process.env.CODE_EXPIRED) * 60 * 1000;
+            if (user.codeExpired) {
+                const lastSentAt = user.codeExpired.getTime() - codeExpiredMs;
+                const elapsedMs = now - lastSentAt;
+
+                if (elapsedMs < requestLimitMs) {
+                    const remainSeconds = Math.ceil((requestLimitMs - elapsedMs) / 1000);
+                    throw new BadRequestException(`Vui lòng chờ ${remainSeconds} giây để gửi lại mã`);
+                }
             }
+            // gửi mã mới
+            const sentAt = Date.now();
             const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
             const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
             const updateUser = await this.prisma.user.update({
@@ -646,13 +657,17 @@ export class UsersService {
             //send email to verify account
             await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
             return {
-                id: updateUser.id
+                id: updateUser.id,
+                resendTime: new Date(sentAt + requestLimitMs).toISOString(),
             }
         } catch (error) {
             if (error instanceof NotFoundException) {
                 throw error;
             }
             if (error instanceof BadRequestException) {
+                throw error;
+            }
+            if (error instanceof UnauthorizedException) {
                 throw error;
             }
             throw new InternalServerErrorException('Có lỗi xảy ra khi gửi lại mã OTP');
@@ -683,10 +698,15 @@ export class UsersService {
                     email: email
                 }
             })
-            if (existingReset && now - existingReset.createdAt.getTime() < requestLimitMs) {
-                const remainMs = requestLimitMs - (now - existingReset.createdAt.getTime());
-                const remainMinutes = Math.ceil(remainMs / 60000);
-                throw new BadRequestException(`Vui lòng chờ ${remainMinutes} phút để gửi lại mã`);
+            const codeExpiredMs = Number(process.env.CODE_EXPIRED) * 60 * 1000;
+            if (existingReset?.codeExpired) {
+                const lastSentAt = existingReset.codeExpired.getTime() - codeExpiredMs;
+                const elapsedMs = now - lastSentAt;
+
+                if (elapsedMs < requestLimitMs) {
+                    const remainSeconds = Math.ceil((requestLimitMs - elapsedMs) / 1000);
+                    throw new BadRequestException(`Vui lòng chờ ${remainSeconds} giây để gửi lại mã`);
+                }
             }
             const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
             const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
@@ -709,7 +729,8 @@ export class UsersService {
             //send email
             await this.mailService.sendForgotPasswordOTPEmail(email, user.name, codeID);
             return {
-                email: updateReset.email
+                email: updateReset.email,
+                resendTime: new Date(Date.now() + requestLimitMs).toISOString()
             }
         } catch (error) {
             if (error instanceof NotFoundException) {
